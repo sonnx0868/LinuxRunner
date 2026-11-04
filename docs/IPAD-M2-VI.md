@@ -94,13 +94,17 @@ Launcher dùng `--no-sandbox --no-zygote` vì sandbox Linux của Chromium chưa
 
 ### Về crash Chromium trong log bạn gửi
 
+**Bản mới nhất là IPA 1009**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009).
+Mở **Settings → App Updates → Check Now**, tải rồi chuyển sang LCSign ký/cài
+với cùng bundle ID. Đóng và mở lại app/desktop; kiểm tra Installed hiển thị 1009.
+
 Log **1008** tiếp theo đã khác lỗi zygote: `mmap(NULL, 0x810000, PROT_NONE,
 MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, ...)` trả `ENOMEM`, rồi Chromium báo
 `pthread_create: Resource temporarily unavailable (11)` và `SIGTRAP`.
 Vùng 0x810000 là dạng stack glibc 8 MiB kèm guard 64 KiB. Log không đủ để
 kết luận RAM vật lý đã hết hoặc chính xác giới hạn nào từ chối cấp phát.
 
-Bản sửa tiếp theo cho phép private PROT_NONE từ 1 MiB dùng demand-zero:
+Bản **1009** cho phép private PROT_NONE từ 1 MiB dùng demand-zero:
 giữ nguyên dung lượng stack và guard nhưng chỉ cấp backing khi trang được dùng.
 Ngưỡng cũ 16 MiB bỏ sót stack 8 MiB. Bài thử macOS cố tình từ chối host mmap
 0x810000, kiểm tra 48 stack cùng tồn tại, dữ liệu riêng, zero-fill, guard,
@@ -108,10 +112,7 @@ mprotect và unmap. Crash mới giữ số đo host virtual/resident/footprint,
 memory allowance và anonymous budget nếu có lỗi cấp phát. Đây chưa phải
 xác nhận Chromium chạy thành công trên iPad.
 
-**Bản chứa sửa zygote là IPA 1008**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008).
-Trong LinuxRunner mở **Settings → App Updates → Check Now**, tải rồi chuyển
-sang LCSign ký/cài với cùng bundle ID. Đóng và mở lại app/desktop sau cập nhật.
-Kiểm tra dòng Installed trong App Updates hiển thị build 1008.
+Sửa zygote đã có từ [IPA 1008](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008).
 
 Log build **1007** mới đã đi qua bước nạp Chromium, rồi `SIGTRAP` tại
 `zygote_host_impl_linux.cc:228`: **Zygote process exited prematurely with exit code 127**.
@@ -185,6 +186,15 @@ Kiểm tra C độc lập đã qua trên Windows. [Bitrise build #7](https://app
 IPA với source và tải thử manifest/IPA/checksum công khai từ release.
 SHA-256: `b0028a4d5648babc1ce9cb67a8e8fa42db5e72da6be042a6484c40dd89b9a586`.
 Khả năng mở Chromium thật vẫn cần người dùng thử trên iPad.
+
+[Bitrise build #9](https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/26f0d146-83aa-4cc1-890f-088cc17dac2b)
+đã thành công cho sửa stack, tạo IPA **1009**, source
+`a46e9090797650d711bc924a63a527da240c71d5`. Test macOS xác nhận 48 stack
+0x810000 cùng tồn tại khi host bị ép từ chối mapping đó, giữ guard EFAULT,
+zero-fill, reprotection, dữ liệu riêng và unmap. DiagnosticsTests cũng qua.
+Đã kiểm tra source hashes, 95 resources và tải thử IPA/checksum công khai.
+SHA-256: `febb90e233a636cd537551b6cd2941ef774e2f006fad54312a78491899cf042c`.
+Chưa có kết quả thử Chromium trên iPad với bản 1009.
 
 ## 7. Tự tải bản cập nhật và chuyển sang LCSign
 
