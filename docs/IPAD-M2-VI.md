@@ -99,16 +99,18 @@ sau thao tác mở Chromium, phiên desktop thoát với wait status `35072`,
 tức **shell exit 137**. Không phải mã lỗi Chromium 35072. Chưa có bằng chứng
 để quy lỗi cho RAM vật lý hoặc xác định ai gửi SIGKILL.
 
-Bản source tiếp theo giữ lỗi Chromium có tiền tố `[pid:tid:…:ERROR/FATAL:…]`
+Bản **1010** giữ lỗi Chromium có tiền tố `[pid:tid:…:ERROR/FATAL:…]`
 trong báo cáo, lọc trước khi lấy 80 dòng chẩn đoán cuối, ghi sender/target
 của SIGKILL/SIGTERM/SIGHUP và lỗi cấp phát của bộ dịch mã. Báo cáo cũng kèm
 trạng thái backend/JIT thực tế, TGID/PGID/SID để phân biệt thread và process,
 và exit status của Plasma. Đây là bổ sung chẩn đoán; chưa khẳng định sửa xong
-lỗi Chromium làm desktop dừng. Kiểm tra native macOS nằm trong workflow build.
+lỗi Chromium làm desktop dừng. Các kiểm tra native macOS đã qua trong build #10.
 
-**Bản mới nhất là IPA 1009**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009).
+**Bản mới nhất là IPA 1010**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1010).
 Mở **Settings → App Updates → Check Now**, tải rồi chuyển sang LCSign ký/cài
-với cùng bundle ID. Đóng và mở lại app/desktop; kiểm tra Installed hiển thị 1009.
+với cùng bundle ID. Đóng và mở lại app/desktop; kiểm tra Installed hiển thị 1010.
+Mở Chromium một lần; nếu desktop dừng, gửi Open Desktop report mới để đọc
+chẩn đoán vừa được bổ sung.
 
 Log **1008** tiếp theo đã khác lỗi zygote: `mmap(NULL, 0x810000, PROT_NONE,
 MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, ...)` trả `ENOMEM`, rồi Chromium báo
@@ -206,7 +208,17 @@ Khả năng mở Chromium thật vẫn cần người dùng thử trên iPad.
 zero-fill, reprotection, dữ liệu riêng và unmap. DiagnosticsTests cũng qua.
 Đã kiểm tra source hashes, 95 resources và tải thử IPA/checksum công khai.
 SHA-256: `febb90e233a636cd537551b6cd2941ef774e2f006fad54312a78491899cf042c`.
-Chưa có kết quả thử Chromium trên iPad với bản 1009.
+Người dùng đã thử 1009: desktop dừng sau khi mở Chromium, như phân tích ở trên.
+
+[Bitrise build #10](https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/11b6441e-2f26-4dbf-a574-8af96f6ada18)
+đã thành công toàn bộ, tạo IPA **1010**, source
+`b46a8352284757d225ba135e81acc095e2f0df8f`. Kiểm tra giữ lỗi Chromium,
+giải mã wait status, Plasma child SIGKILL → 137 và tracing sender/target
+trong kernel thực đều đã qua, cùng exec rollback, 48 stack và native RFB.
+Đã đối chiếu 17 source hashes, 95 resources và chuỗi chẩn đoán trong binary;
+manifest/latest, checksum và IPA công khai khớp artifact Bitrise.
+SHA-256: `5033e7d0a636ca86ed1b7e7bba77790d1ae868a6f3b3193e324e65f8af02eced`.
+Bản này bổ sung bằng chứng để điều tra; cần log 1010 trên iPad nếu lỗi tiếp diễn.
 
 ## 7. Tự tải bản cập nhật và chuyển sang LCSign
 

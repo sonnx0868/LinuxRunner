@@ -13,27 +13,35 @@
   dòng chẩn đoán, giải mã wait status, ghi sender/target signal, lỗi cấp phát
   translator và số đo host; bổ sung TGID/PGID/SID, trạng thái JIT thực tế,
   status của Plasma child. Chưa sửa nguyên nhân Chromium còn lại.
-- Bitrise #10 đang build source này, dự kiến IPA 1010:
+- Bitrise #10 đã thành công toàn bộ (7 phút 17 giây), tạo IPA **1010**:
   https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/11b6441e-2f26-4dbf-a574-8af96f6ada18
 - Bước kiểm tra #10 đã PASS thực tế: DiagnosticsTests (Chromium, wait status,
   evidence ring), Plasma child SIGKILL → 137, actual-kernel signal tracing
   dưới pids_lock (sender/target, đúng process group, bỏ probe/ESRCH/EPERM),
   exec rollback, 48 stack dưới host mmap injection, native RFB tests.
-- Phải đợi archive/audit/deploy hoàn tất, tải và kiểm tra IPA rồi publish;
-  chưa gọi 1010 đã phát hành chỉ vì các bài kiểm tra đã qua.
+- Đã tải artifact, kiểm tra Info.plist/source commit, 95 resources, hash của
+  17 file source thay đổi và các chuỗi chẩn đoán trong binary đã biên dịch.
+- Đã phát hành: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1010
+- IPA: https://github.com/sonnx0868/LinuxRunner/releases/download/m2-build-1010/LinuxRunner-M2-YES.ipa
+- SHA-256: `5033e7d0a636ca86ed1b7e7bba77790d1ae868a6f3b3193e324e65f8af02eced`.
+- Đã tải manifest/latest, checksum và IPA công khai không đăng nhập; nội dung
+  và SHA-256 khớp artifact Bitrise, kích thước IPA 19.027.791 byte.
+- Việc tiếp theo: cài 1010, kiểm tra Installed hiển thị 1010, mở Chromium một
+  lần. Nếu desktop dừng, xuất Open Desktop report mới và gửi để xác định
+  nguồn dừng tiến trình. Chưa xác nhận Chromium hoạt động trên iPad.
 
 Clone đúng branch bên dưới, mở thư mục trong Codex rồi gửi:
 
 > Đọc docs/CONTINUE-AT-HOME-VI.md rồi tiếp tục LinuxRunner cho iPad Pro M2
 > 16 GB, iPadOS 27, Debian 13 aarch64. Ưu tiên tốc độ và độ mượt. Bản sửa
-> Chromium đã build và phát hành IPA 1009. Tiếp tục dựa trên kết quả thử
-> bản 1009 trên iPad; không coi Chromium đã chạy được khi chưa có xác nhận
-> từ thiết bị.
+> IPA mới nhất là 1010, bổ sung chẩn đoán sau khi 1009 tắt desktop lúc mở
+> Chromium. Đọc log 1010 mới từ iPad rồi sửa nguyên nhân; không coi Chromium
+> đã chạy được khi chưa có xác nhận từ thiết bị.
 
 Source và ghi chú đủ để tiếp tục công việc; cách này không sao chép toàn bộ
 lịch sử chat. GitHub và Bitrise ở máy nhà cần đăng nhập tài khoản của bạn.
 
-### Trạng thái chính xác lúc chuyển máy
+### Lịch sử các bản trước 1010
 
 - Commit sửa Chromium: `225e46b` (đã đẩy lên branch bên dưới).
 - Kiểm tra shell trên Windows và manifest 95 resources đã qua.
@@ -49,26 +57,26 @@ lịch sử chat. GitHub và Bitrise ở máy nhà cần đăng nhập tài kho�
 - Người dùng đã thử 1008: lỗi mới là `mmap` stack 0x810000 PROT_NONE trả ENOMEM,
   rồi `pthread_create` báo lỗi 11, SIGTRAP. Chưa xác định được giới hạn host
   nào từ chối cấp phát; không kết luận hết RAM vật lý.
-- Bản mới nhất: IPA **1009**, source `a46e9090797650d711bc924a63a527da240c71d5`.
+- IPA **1009**, source `a46e9090797650d711bc924a63a527da240c71d5`.
   Private PROT_NONE từ 1 MiB dùng demand-zero thay vì cấp nguyên backing;
   stack 8 MiB và guard giữ nguyên. Thêm số đo bộ nhớ vào crash report.
 - Bitrise #9 thành công: https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/26f0d146-83aa-4cc1-890f-088cc17dac2b
-- Release mới: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009
-- IPA mới: https://github.com/sonnx0868/LinuxRunner/releases/download/m2-build-1009/LinuxRunner-M2-YES.ipa
-- SHA-256 mới: `febb90e233a636cd537551b6cd2941ef774e2f006fad54312a78491899cf042c`.
+- Release 1009: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009
+- IPA 1009: https://github.com/sonnx0868/LinuxRunner/releases/download/m2-build-1009/LinuxRunner-M2-YES.ipa
+- SHA-256 1009: `febb90e233a636cd537551b6cd2941ef774e2f006fad54312a78491899cf042c`.
 - Đã qua test macOS: 48 stack 0x810000 tồn tại khi host bị ép từ chối cấp
   nguyên vùng, guard EFAULT, zero-fill, reprotection, dữ liệu riêng và unmap.
   DiagnosticsTests và toàn bộ bước check/archive/IPA verification cũng qua.
 - Đã kiểm tra manifest, 95 resources, hash các source thay đổi trong artifact,
   rồi tải IPA/checksum công khai không đăng nhập và đối chiếu SHA-256.
-- Việc tiếp theo: cài 1009, mở desktop mới và thử Chromium trên iPad.
-  Nếu vẫn crash, cần log mới của 1009 để xác định lỗi còn lại.
+- Người dùng đã thử 1009: desktop dừng sau khi mở Chromium; kết quả và bản
+  chẩn đoán 1010 được ghi ở phần đầu tài liệu.
 
 ## Source
 
 - Repo: https://github.com/sonnx0868/LinuxRunner
 - Branch: `codex/ipad-m2-performance`
-- Bản hiện tại: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009
+- Bản hiện tại: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1010
 - Bản đã phát hành trước sửa zygote: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1007
 - Người dùng: iPad Pro M2, 16 GB RAM, iPadOS 27; Debian 13 aarch64, user thường có sudo.
 - Ưu tiên tốc độ dịch mã và độ trễ khung hình. Chưa đo tốc độ thực tế trên iPad.
