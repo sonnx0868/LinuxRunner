@@ -2,6 +2,7 @@
 set -eu
 # Debian's real Chromium package, separate from LinuxRunner's Qt browser.
 launcher=$(command -v chromium) || { echo 'Install Chromium first: sudo apt install chromium' >&2; exit 127; }
+printf '%s\n' 'CHROMIUM_COMPAT: launcher=m2 sandbox=off zygote=off gpu=software v8=jitless' >&2
 export LIBGL_ALWAYS_SOFTWARE=1 LR_MESA_METAL_MODE=off
 profile="${XDG_CONFIG_HOME:-$HOME/.config}/linuxrunner/chromium"
 mkdir -p "$profile"

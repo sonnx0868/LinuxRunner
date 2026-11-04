@@ -43,8 +43,18 @@
       "mode": "0644"
     },
     {
+      "name": "chromium-compat.conf",
+      "sha256": "ad652c07b159dd49c95e68053a4740d24aca02814ac4edc0e211ed396d0a6123",
+      "mode": "0644"
+    },
+    {
       "name": "chromium-m2.sh",
-      "sha256": "ecadbf73d92acf8697189c2e2e3a8b44a5dea64742be683538dd163c7e1a1801",
+      "sha256": "a3e990f580112ec6af9cde54fffaa588a643d76d887425734804d89a8eda99c8",
+      "mode": "0755"
+    },
+    {
+      "name": "configure-chromium.sh",
+      "sha256": "d11ff5f90dfab61940883e9ec9ba02712a215472615316ef0b91641ecacc2667",
       "mode": "0755"
     },
     {
@@ -419,12 +429,12 @@
     },
     {
       "name": "session.sh",
-      "sha256": "7d33bc02a949ae221e24f9bf5861a8fb0238211b3c125d2f1d1a2bb46bd60ba0",
+      "sha256": "52ca5fc387c61136b2ebd9d7d8ff8d2896e07aa5a3e19ba018051c1479847e85",
       "mode": "0755"
     },
     {
       "name": "setup-debian-m2.sh",
-      "sha256": "b6cddeb13c123f503d3e853e615b01dbbd5b75c9678cf14ba911ccc1244b91ca",
+      "sha256": "13e6e85ea5ff570736a06216841b69d74b71731a35df0562c3b2f22b5f378212",
       "mode": "0755"
     },
     {

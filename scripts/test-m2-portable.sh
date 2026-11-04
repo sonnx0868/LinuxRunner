@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/m2-tests
+sh tests/linuxrunner/gui/test-chromium-compat.sh
 read -r -a compiler <<< "${CC:-cc}"
 flags=(-std=c11 -O2 -Wall -Wextra -Werror -UNDEBUG -I.)
 "${compiler[@]}" "${flags[@]}" -pthread tests/linuxrunner/gui/m2_policy_test.c -lm -o build/m2-tests/policy-test

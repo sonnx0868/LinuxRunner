@@ -65,9 +65,11 @@ def main():
              'Download the IPA, open it in LCSign, then sign and install with your existing app identity. '
              'This IPA has an ad-hoc signature and requires your own signing/provisioning.\n\n'
              f'Source: {document["sourceCommit"]}\n'
-             'Includes Chromium exec rollback repair, M2 profile, raw keyboard input, '
+             'Includes Debian Chromium launcher compatibility for the zygote exit-127 crash, '
+             'Chromium exec rollback repair, M2 profile, raw keyboard input, '
              'StikDebug authorization request and in-app update downloads. '
-             'On-device performance and LCSign import still require testing on the iPad.')
+             'The Chromium compatibility flags reduce browser isolation inside the Linux guest. '
+             'Chromium startup, performance and LCSign import still require testing on the iPad.')
     release = request(f'{api}/releases', 'POST', json.dumps(dict(
         tag_name=tag, target_commitish=document['sourceCommit'],
         name=f'LinuxRunner M2 · build {document["build"]}', body=notes, draft=True, prerelease=False)).encode())

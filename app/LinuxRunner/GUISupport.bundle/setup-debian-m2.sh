@@ -9,6 +9,8 @@ sudo apt-get update
 sudo apt-get install -y --no-install-recommends chromium fcitx5 fcitx5-unikey \
     fcitx5-config-qt fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 \
     fcitx5-frontend-qt5 fcitx5-frontend-qt6 im-config fonts-noto-core fonts-noto-color-emoji
+source_dir=$(cd "$(dirname "$0")" && pwd)
+sudo /bin/sh "$source_dir/configure-chromium.sh"
 im-config -n fcitx5
 mkdir -p "$HOME/.config/plasma-workspace/env" "$HOME/.config/autostart" \
     "$HOME/.local/bin" "$HOME/.local/share/applications"
@@ -24,7 +26,6 @@ Name=Fcitx 5
 Exec=fcitx5 -d --replace
 X-KDE-autostart-after=panel
 EOF
-source_dir=$(cd "$(dirname "$0")" && pwd)
 install -m 755 "$source_dir/chromium-m2.sh" "$HOME/.local/bin/linuxrunner-chromium"
 cat > "$HOME/.local/share/applications/linuxrunner-chromium.desktop" <<EOF
 [Desktop Entry]

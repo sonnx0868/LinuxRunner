@@ -43,7 +43,7 @@ enum DiagnosticPrivacy {
         // include diagnostic records, not arbitrary user program output.
         input.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let s = String(line)
-            let allowed = ["GUI_", "DESKTOP_", "X11_", "FOCUS:", "QT_TEST:", "BROWSER:", "BROWSER_", "FIREFOX_", "[Parent", "Gtk-WARNING", "WARNING", "ERROR", "FATAL", "Crash Annotation", "Xlib:", "xauth:", "QPainter::", "QWidget::", "QEGLPlatformContext:", "qt.qpa.", "Could not load the Qt platform plugin", "This application failed to start because no Qt platform plugin", "Available platform plugins are:"]
+            let allowed = ["GUI_", "DESKTOP_", "X11_", "FOCUS:", "QT_TEST:", "BROWSER:", "BROWSER_", "CHROMIUM_COMPAT:", "FIREFOX_", "[Parent", "Gtk-WARNING", "WARNING", "ERROR", "FATAL", "Crash Annotation", "Xlib:", "xauth:", "QPainter::", "QWidget::", "QEGLPlatformContext:", "qt.qpa.", "Could not load the Qt platform plugin", "This application failed to start because no Qt platform plugin", "Available platform plugins are:"]
             return allowed.contains(where: s.hasPrefix) ? redact(s) : "[unstructured application output omitted]"
         }.joined(separator: "\n")
     }

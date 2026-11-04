@@ -27,6 +27,11 @@ if [ "$(id -u)" = 0 ] && [ -d /etc/profile.d ] && ! cmp -s ./desktop-env.sh /etc
         mv /etc/profile.d/linuxrunner-desktop.sh.new /etc/profile.d/linuxrunner-desktop.sh; then echo 'GUI_SESSION: terminal_desktop_hook=installed'
     else rm -f /etc/profile.d/linuxrunner-desktop.sh.new; echo 'GUI_SESSION: terminal_desktop_hook=unavailable'; fi
 fi
+# Upgrade existing Debian desktops too: their standard Chromium icon and
+# /usr/bin/chromium need the compatibility flags, not only the optional M2 icon.
+if [ "$(id -u)" = 0 ]; then
+    /bin/sh ./configure-chromium.sh || echo 'CHROMIUM_COMPAT: configuration failed; see session log'
+fi
 if [ "$(id -u)" = 0 ] && [ "$guest_user" != root ]; then
     entry=$(awk -F: -v name="$guest_user" '$1==name {print; count++} END {if(count!=1)exit 1}' /etc/passwd) || {
         echo 'GUI_SESSION: selected account missing; root fallback refused'; exit 10;
@@ -88,7 +93,7 @@ if [ "$guest_user" != root ] && [ "$(id -un)" != "$guest_user" ]; then
 fi
 echo "GUI_SESSION: effective_uid=$(id -u) effective_gid=$(id -g) user=$(id -un) home=$HOME"
 # Read-only metadata evidence for packaged Chromium/Electron sandbox helpers.
-# Never grant set-ID privileges or disable sandboxing from a launcher.
+# Never grant set-ID privileges to packaged helpers.
 helper_count=0
 for helper in /usr/share/*/chrome-sandbox /usr/lib/*/chrome-sandbox /opt/*/*/chrome-sandbox; do
     [ -f "$helper" ] || continue

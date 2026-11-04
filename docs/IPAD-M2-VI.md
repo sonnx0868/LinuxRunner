@@ -94,7 +94,31 @@ Launcher dùng `--no-sandbox --no-zygote` vì sandbox Linux của Chromium chưa
 
 ### Về crash Chromium trong log bạn gửi
 
-Log cho thấy `execve` trả `ENOMEM` khi host từ chối ánh xạ đoạn ELF khoảng **237 MiB** của `/usr/lib/chromium/chromium` (file khoảng 294 MiB). PC và LR sau đó đều trỏ vào vùng không còn được map.
+Log build **1007** mới đã đi qua bước nạp Chromium, rồi `SIGTRAP` tại
+`zygote_host_impl_linux.cc:228`: **Zygote process exited prematurely with exit code 127**.
+Điều này xác nhận lỗi hiện tại ở đường khởi tạo zygote/sandbox; log chưa chỉ ra
+chính xác thao tác bên trong tiến trình con khiến nó trả 127.
+
+Bản sửa sau build 1007 cài fragment `/etc/chromium.d/90-linuxrunner` khi mở
+desktop Debian. Đây là điểm cấu hình chính thức mà launcher Debian đọc; chỉ
+export `CHROMIUM_FLAGS` từ desktop không đủ vì `/usr/bin/chromium` đặt lại biến
+này trước khi đọc các fragment. Biểu tượng Chromium thường trong KDE và lệnh
+`chromium` đều nhận `--no-sandbox --no-zygote`, phần mềm GPU và V8 jitless.
+Không cần cài lại gói Chromium hoặc chạy lại toàn bộ setup. Mở desktop mới
+sau khi cập nhật app để áp dụng. Các renderer vẫn là tiến trình riêng;
+không thêm `--single-process` hoặc xóa profile.
+
+Thử ngay trên build 1007, trong **Konsole của KDE**:
+
+```bash
+chromium --no-sandbox --no-zygote --disable-gpu --disable-gpu-compositing --js-flags=--jitless --user-data-dir="$HOME/.config/linuxrunner/chromium" about:blank
+```
+
+Lệnh này dùng profile riêng, không xóa lịch sử/profile Chromium đang có. Nếu
+vẫn dừng, gửi log mới: cần kiểm tra lỗi sau khi đã bỏ đường zygote. Cấu hình
+này giảm các lớp cách ly của Chromium trong Linux; sandbox iPadOS vẫn được giữ.
+
+Trong log cũ của build **900**, `execve` trả `ENOMEM` khi host từ chối ánh xạ đoạn ELF khoảng **237 MiB** của `/usr/lib/chromium/chromium` (file khoảng 294 MiB). PC và LR sau đó đều trỏ vào vùng không còn được map.
 
 Bản sửa giữ ảnh tiến trình cũ đến khi nạp thành công, giải phóng ảnh nạp dở và trả errno nếu nạp thất bại. Nhờ vậy tránh lỗi thứ hai: quay về mã đã bị xóa. Điều này **chưa đảm bảo** iPadOS chấp nhận ánh xạ file Chromium lớn. Cờ giảm tiến trình chỉ có tác dụng khi các tiến trình nạp được.
 
