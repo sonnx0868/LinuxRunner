@@ -23,6 +23,14 @@ checkout angle https://chromium.googlesource.com/angle/angle feebf60fe088ccec3a2
 export PATH="$GPU_DEPS/depot_tools:$PATH" DEPOT_TOOLS_UPDATE=0 DEPOT_TOOLS_METRICS=0
 cd "$GPU_DEPS/angle"
 python3 scripts/bootstrap.py
+# This app uses ANGLE's Metal backend. OpenCL and WebGPU checkouts pull in
+# LLVM source and Dawn that are not needed by that backend.
+cat >> .gclient <<'GCLIENT'
+solutions[0].setdefault('custom_vars', {}).update({
+    'checkout_angle_cl_deps': False,
+    'checkout_angle_dawn_deps': False,
+})
+GCLIENT
 # Bitrise starts from a clean VM. The full LLVM/CTS/SwiftShader histories
 # are large; the build only needs the revisions pinned by ANGLE's DEPS.
 gclient sync --no-history --revision feebf60fe088ccec3a26a7419d6ac68edf542c7a

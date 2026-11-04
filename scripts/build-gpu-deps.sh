@@ -35,9 +35,10 @@ esac
 angle_out=out/lr-$platform
 args="is_debug=false symbol_level=0 target_cpu=\"arm64\" angle_enable_metal=true angle_enable_vulkan=false angle_enable_gl=false"
 args+=" angle_enable_null=false angle_enable_swiftshader=false angle_build_tests=false is_component_build=false"
+args+=" angle_enable_cl=false angle_enable_wgpu=false"
 args+=" angle_has_frame_capture=false use_siso=false"
 [[ $os == ios ]] && args+=" target_os=\"ios\" target_environment=\"$angle_env\" ios_enable_code_signing=false ios_deployment_target=\"15.0\""
-(cd "$GPU_DEPS/angle" && PATH="$GPU_DEPS/depot_tools:$PATH" buildtools/mac/gn gen "$angle_out" --args="$args" >/dev/null &&
+(cd "$GPU_DEPS/angle" && PATH="$GPU_DEPS/depot_tools:$PATH" buildtools/mac/gn gen "$angle_out" --args="$args" &&
     ninja -C "$angle_out" libGLESv2 libEGL_static)
 python3 scripts/gpu/angle-static-archive.py "$GPU_DEPS/angle/$angle_out" "$out/lib/libangle.a"
 rsync -a --delete "$GPU_DEPS/angle/include/" "$out/include/angle/"
@@ -67,10 +68,10 @@ EOF
 rm -rf "$work/libepoxy" && cp -R "$GPU_DEPS/libepoxy" "$work/libepoxy"
 [[ $os == ios ]] && (cd "$work/libepoxy" && git apply "$OLDPWD/scripts/gpu/libepoxy-ios-process-image.patch")
 meson setup --wipe "$work/epoxy-build" "$work/libepoxy" --cross-file "$work/cross.txt" --prefix="$out" \
-    -Degl=yes -Dglx=no -Dx11=false -Dtests=false -Ddocs=false >/dev/null
-ninja -C "$work/epoxy-build" install >/dev/null
+    -Degl=yes -Dglx=no -Dx11=false -Dtests=false -Ddocs=false
+ninja -C "$work/epoxy-build" install
 PKG_CONFIG_LIBDIR=$out/lib/pkgconfig meson setup --wipe "$work/virgl-build" "$GPU_DEPS/virglrenderer" --cross-file "$work/cross.txt" \
-    --prefix="$out" -Dplatforms=egl -Dvenus=false -Dvideo=false -Dtests=false >/dev/null
-ninja -C "$work/virgl-build" install >/dev/null
+    --prefix="$out" -Dplatforms=egl -Dvenus=false -Dvideo=false -Dtests=false
+ninja -C "$work/virgl-build" install
 printf 'virglrenderer %s\nlibepoxy %s\nangle %s\n' "$VIRGL_REV" "$EPOXY_REV" "$ANGLE_REV" > "$out/REVISIONS"
 ls -la "$out/lib"

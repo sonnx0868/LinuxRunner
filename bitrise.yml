@@ -59,12 +59,27 @@ workflows:
             #!/bin/bash
             set -euo pipefail
             export GPU_DEPS="$PWD/build/gpu-sources"
-            bash scripts/prepare-gpu-sources.sh
-            scripts/build-gpu-deps.sh iphoneos
+            bash scripts/prepare-gpu-sources.sh 2>&1 | tee build/gpu-prepare.log
+            scripts/build-gpu-deps.sh iphoneos 2>&1 | tee build/gpu-build.log
             export LINUXRUNNER_M2_PROFILE=YES LINUXRUNNER_VIRGL=YES
             export ARTIFACT_NAME="LinuxRunner-M2-${LINUXRUNNER_JIT}"
             scripts/build-ipa.sh --unsigned
             python3 scripts/verify-ipa.py build/releases
             mkdir -p "$BITRISE_DEPLOY_DIR"
             cp build/releases/*.ipa build/releases/*.sha256 docs/IPAD-M2-VI.md "$BITRISE_DEPLOY_DIR/"
+    - script@1:
+        title: Collect build diagnostics
+        is_always_run: true
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -euo pipefail
+            mkdir -p "$BITRISE_DEPLOY_DIR"
+            for log in build/gpu-prepare.log build/gpu-build.log build/releases/archive.log; do
+                if [[ -f "$log" ]]; then cp "$log" "$BITRISE_DEPLOY_DIR/"; fi
+            done
+            for dependency in epoxy virgl; do
+                log="build/gpu/iphoneos/work/$dependency-build/meson-logs/meson-log.txt"
+                if [[ -f "$log" ]]; then cp "$log" "$BITRISE_DEPLOY_DIR/$dependency-meson-log.txt"; fi
+            done
     - deploy-to-bitrise-io@2: {}
