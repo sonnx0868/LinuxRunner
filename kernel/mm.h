@@ -14,6 +14,8 @@
 
 #if ANON_MMAP_LIMIT_PAGES > 0
 extern _Atomic long anon_page_count;
+// Configure once before guest startup; per-process sysinfo remains capped.
+extern _Atomic long anon_page_limit;
 // Logical committed anonymous guest pages, not host RSS/physical footprint.
 bool anon_pages_reserve(long pages);
 void anon_pages_unreserve(long pages);

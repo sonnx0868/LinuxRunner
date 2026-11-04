@@ -74,6 +74,10 @@ void LRSetDatalessMaterialization(void);
 // The whole LinuxRunner app's memory as iOS accounts it (phys_footprint), 0 if unavailable.
 + (uint64_t)appFootprintBytes;
 + (BOOL)virglCompiledIn;
++ (BOOL)m2PerformanceProfile;
++ (BOOL)autoRequestJIT;
++ (void)setAutoRequestJIT:(BOOL)enabled;
++ (BOOL)requestJITAttachment;
 + (BOOL)virglActive;
 + (NSString *)executionMode;            // interpreter | automatic | jit
 + (void)setExecutionMode:(NSString *)mode;

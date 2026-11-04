@@ -155,8 +155,9 @@ static int load_entry(exec_prg_header ph, addr_t bias, struct fd *fd) {
             // Unlock and lock the mem because the user functions must be
             // called without locking mem.
             write_wrunlock(&current->mem->lock);
-            user_memset(file_end, 0, tail_size);
+            err = user_memset(file_end, 0, tail_size);
             write_wrlock(&current->mem->lock);
+            if (err) return _EFAULT;
         }
         if (tail_size > bss_size)
             tail_size = bss_size;
@@ -253,25 +254,19 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
         }
     }
 
-    // free the process's memory.
-    // from this point on, if any error occurs the process will have to be
-    // killed before it even starts. please don't be too sad about it, it's
-    // just a process.
-    //
-    // general_lock protects current->mm. otherwise procfs might read the
-    // pointer before it's released and then try to lock it after it's
-    // released.
+    // Keep the caller's address space until the replacement image and stack
+    // are complete. A host mmap failure (notably a large Chromium segment)
+    // must return errno into valid code, not into an already destroyed image.
     struct mm *new_mm = mm_new();
-    if (new_mm == NULL)
-        return _ENOMEM;
-    futex_pi_exit();
-    futex_robust_exit();
-    current->robust_list = 0;
+    if (new_mm == NULL) {
+        err = _ENOMEM;
+        goto out_free_interp;
+    }
     lock(&current->general_lock);
     struct mm *old_mm = current->mm;
     task_set_mm(current, new_mm);
-    mm_release(old_mm);
     unlock(&current->general_lock);
+    bool image_locked = true;
     write_wrlock(&current->mem->lock);
 
     current->mm->exefile = fd_retain(fd);
@@ -293,7 +288,7 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
         }
 
         if ((err = load_entry(ph[i], bias, fd)) < 0)
-            goto beyond_hope;
+            goto discard_image;
 
         // load_addr is used to get a value for AX_PHDR et al
         if (!load_addr_set) {
@@ -317,7 +312,7 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
             if (interp_ph[i].type != PT_LOAD)
                 continue;
             if ((err = load_entry(interp_ph[i], interp_base, interp_fd)) < 0)
-                goto beyond_hope;
+                goto discard_image;
         }
         entry = interp_base + interp_header.entry_point;
     }
@@ -331,31 +326,32 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
     // add one.
     page_t vdso_page = pt_find_hole(current->mem, vdso_pages + 1);
     if (vdso_page == BAD_PAGE)
-        goto beyond_hope;
+        goto discard_image;
     vdso_page += 1;
     // Read + execute, never writable (GitHub issue #3): handlers return through
     // __kernel_rt_sigreturn in this page, and instruction fetches need P_READ.
     if ((err = pt_map(current->mem, vdso_page, vdso_pages, (void *) vdso_data, 0, P_READ | P_EXEC)) < 0)
-        goto beyond_hope;
+        goto discard_image;
     mem_pt(current->mem, vdso_page)->data->name = "[vdso]";
     current->mm->vdso = vdso_page << PAGE_BITS;
 
     // map empty vvar pages alongside the VDSO
     page_t vvar_page = pt_find_hole(current->mem, VVAR_PAGES);
     if (vvar_page == BAD_PAGE)
-        goto beyond_hope;
+        goto discard_image;
     if ((err = pt_map_nothing(current->mem, vvar_page, VVAR_PAGES, 0)) < 0)
-        goto beyond_hope;
+        goto discard_image;
     mem_pt(current->mem, vvar_page)->data->name = "[vvar]";
 
     // STACK TIME!
 
     // ARM64: stack near top of 48-bit address space
     if ((err = pt_map_nothing(current->mem, STACK_INIT_PAGE, 1, stack_prot)) < 0)
-        goto beyond_hope;
+        goto discard_image;
     if ((err = pt_map_nothing(current->mem, STACK_TOP_PAGE, 1, P_READ)) < 0)
-        goto beyond_hope;
+        goto discard_image;
     write_wrunlock(&current->mem->lock);
+    image_locked = false;
     addr_t sp = STACK_TOP_ADDR;
     // 64-bit Linux leaves 8 empty bytes at the bottom of the initial stack.
     sp -= sizeof(void *);
@@ -366,28 +362,28 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
     // Note: lock is already released at this point
     addr_t file_addr = sp = copy_string(sp, file);
     if (sp == 0)
-        goto out_free_interp;
+        goto discard_image;
     current->mm->env_end = sp;
     addr_t envp_addr = sp = args_copy(sp, envp);
     if (sp == 0)
-        goto out_free_interp;
+        goto discard_image;
     current->mm->env_start = sp;
     current->mm->argv_end = sp;
     addr_t argv_addr = sp = args_copy(sp, argv);
     if (sp == 0)
-        goto out_free_interp;
+        goto discard_image;
     current->mm->argv_start = sp;
     sp = align_stack(sp);
 
     addr_t platform_addr = sp = copy_string(sp, "aarch64");
     if (sp == 0)
-        goto out_free_interp;
+        goto discard_image;
     // 16 random bytes so no system call is needed to seed a userspace RNG
     char random[16] = {};
     get_random(random, sizeof(random)); // if this fails, eh, no one's really using it
     addr_t random_addr = sp -= sizeof(random);
     if (user_put(sp, random))
-        goto out_free_interp;
+        goto discard_image;
 
     // the way linux aligns the stack at this point is kinda funky
     // calculate how much space is needed for argv, envp, and auxv, subtract
@@ -428,13 +424,13 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
     addr_t p = sp;
 
     // argc
-    {uint64_t argc64 = argv.count; if (user_put(p, argc64)) return _EFAULT;}
+    {uint64_t argc64 = argv.count; if (user_put(p, argc64)) goto discard_image;}
     p += ELF_PTR_SIZE;
 
     // argv
     size_t argc = argv.count;
     while (argc-- > 0) {
-        {uint64_t ptr64 = argv_addr; if (user_put(p, ptr64)) return _EFAULT;}
+        {uint64_t ptr64 = argv_addr; if (user_put(p, ptr64)) goto discard_image;}
         argv_addr += user_strlen(argv_addr) + 1;
         p += ELF_PTR_SIZE;
     }
@@ -443,7 +439,7 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
     // envp
     size_t envc = envp.count;
     while (envc-- > 0) {
-        {uint64_t ptr64 = envp_addr; if (user_put(p, ptr64)) return _EFAULT;}
+        {uint64_t ptr64 = envp_addr; if (user_put(p, ptr64)) goto discard_image;}
         envp_addr += user_strlen(envp_addr) + 1;
         p += ELF_PTR_SIZE;
     }
@@ -452,9 +448,22 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
     // copy auxv
     current->mm->auxv_start = p;
     if (user_put(p, aux))
-        goto beyond_hope;
+        goto discard_image;
     p += sizeof(aux);
     current->mm->auxv_end = p;
+
+    // Commit: robust/PI futex cleanup must access the OLD user addresses,
+    // and only run once exec can no longer fail.
+    lock(&current->general_lock);
+    task_set_mm(current, old_mm);
+    unlock(&current->general_lock);
+    futex_pi_exit();
+    futex_robust_exit();
+    current->robust_list = 0;
+    lock(&current->general_lock);
+    task_set_mm(current, new_mm);
+    mm_release(old_mm);
+    unlock(&current->general_lock);
 
     current->mm->stack_start = sp;
     current->cpu.sp = sp;
@@ -481,9 +490,13 @@ out_free_ph:
     free(ph);
     return err;
 
-beyond_hope:
-    // TODO force sigsegv
-    write_wrunlock(&current->mem->lock);
+discard_image:
+    if (image_locked)
+        write_wrunlock(&new_mm->mem.lock);
+    lock(&current->general_lock);
+    task_set_mm(current, old_mm);
+    mm_release(new_mm);
+    unlock(&current->general_lock);
     goto out_free_interp;
 }
 

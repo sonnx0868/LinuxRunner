@@ -12,6 +12,10 @@
 #import "NSObject+SaneKVO.h"
 
 #include <math.h>
+#include <ctype.h>
+#ifdef LINUXRUNNER
+#include "LinuxRunner/KeyboardPolicy.h"
+#endif
 
 struct rowcol {
     int row;
@@ -552,6 +556,15 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
 
 #pragma mark Keyboard Traits
 
+#ifdef LINUXRUNNER
+- (UIKeyboardType)keyboardType { return UIKeyboardTypeASCIICapable; }
+- (UITextInputMode *)textInputMode {
+    for (UITextInputMode *mode in UITextInputMode.activeInputModes)
+        if ([mode.primaryLanguage hasPrefix:@"en"]) return mode;
+    return [super textInputMode];
+}
+#endif
+
 - (UITextSmartDashesType)smartDashesType API_AVAILABLE(ios(11)) {
     return UITextSmartDashesTypeNo;
 }
@@ -688,6 +701,51 @@ static const char *metaKeys = "abcdefghijklmnopqrstuvwxyz0123456789-=[]\\;',./";
 }
 
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+#ifdef LINUXRUNNER
+    // Consume physical printable keys before UITextInput composes host Telex.
+    // Command shortcuts (including Paste) retain their native responder path.
+    NSMutableSet *remaining = [presses mutableCopy];
+    for (UIPress *press in presses) {
+        UIKey *key = press.key;
+        if (!key || (key.modifierFlags & UIKeyModifierCommand)) continue;
+        BOOL shift = (key.modifierFlags & UIKeyModifierShift) != 0;
+        BOOL caps = (key.modifierFlags & UIKeyModifierAlphaShift) != 0;
+        if (key.keyCode >= 4 && key.keyCode <= 29) shift ^= caps;
+        uint32_t symbol = lr_hid_us_symbol((unsigned)key.keyCode, shift);
+        NSString *text = nil;
+        if (symbol >= 32 && symbol < 127) text = [NSString stringWithFormat:@"%c", (char)symbol];
+        else switch (symbol) {
+            case 0xff0d: case 0xff8d: text = @"\r"; break;
+            case 0xff08: text = @"\x7f"; break;
+            case 0xff09: text = shift ? @"\x1b[Z" : @"\t"; break;
+            case 0xff1b: text = @"\x1b"; break;
+            case 0xff51: text = [self.terminal arrow:'D']; break;
+            case 0xff52: text = [self.terminal arrow:'A']; break;
+            case 0xff53: text = [self.terminal arrow:'C']; break;
+            case 0xff54: text = [self.terminal arrow:'B']; break;
+            case 0xff50: text = @"\x1b[H"; break;
+            case 0xff57: text = @"\x1b[F"; break;
+            case 0xff55: text = @"\x1b[5~"; break;
+            case 0xff56: text = @"\x1b[6~"; break;
+            case 0xffff: text = @"\x1b[3~"; break;
+            default: break;
+        }
+        if (!text) continue;
+        if ((key.modifierFlags & UIKeyModifierControl) && symbol >= 32 && symbol < 127) {
+            if (symbol == '-' || symbol == '_') {
+                char control = 0x1f;
+                [self.terminal sendInput:[NSData dataWithBytes:&control length:1]];
+            } else [self insertControlChar:(char)tolower((int)symbol)];
+        }
+        else {
+            if (key.modifierFlags & UIKeyModifierAlternate) text = [@"\x1b" stringByAppendingString:text];
+            [self insertText:text];
+        }
+        [remaining removeObject:press];
+    }
+    if (remaining.count) [super pressesBegan:remaining withEvent:event];
+    return;
+#endif
     if (@available(iOS 13.4, *)) {
         UIKey *key = presses.anyObject.key;
         if (UserPreferences.shared.overrideControlSpace &&

@@ -4,6 +4,9 @@
 #import "FramebufferPatch.h"
 #import "DiagnosticLogTail.h"
 #import "RFBProtocol.h"
+#include "KeyboardPolicy.h"
+#include "ScrollPolicy.h"
+#include "PerformancePolicy.h"
 #import "MetalFramebufferView.h"
 #import "AudioBridge.h"
 #import "LinuxRunner-Swift.h"
@@ -104,7 +107,7 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 @property(nonatomic,strong) UIPanGestureRecognizer *twoFingerScroll;
 @property(nonatomic,strong) UIPinchGestureRecognizer *viewportPinch;
 // External mouse (GameController GCMouse): relative motion, buttons, wheel.
-@property uint8_t mouseButtons;
+@property uint8_t mouseButtons,previousPointerButtons;
 @property double mouseX,mouseY,mouseScroll;
 @property CFTimeInterval lastMouseButtonTime;
 // Pointer arbitration (PointerPolicy.h) and input diagnostics.
@@ -281,6 +284,13 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 - (UITextSmartQuotesType)smartQuotesType{return UITextSmartQuotesTypeNo;}
 - (UITextSmartDashesType)smartDashesType{return UITextSmartDashesTypeNo;}
 - (UITextSmartInsertDeleteType)smartInsertDeleteType{return UITextSmartInsertDeleteTypeNo;}
+- (UIKeyboardType)keyboardType{return UIKeyboardTypeASCIICapable;}
+- (UITextSpellCheckingType)spellCheckingType{return UITextSpellCheckingTypeNo;}
+- (UITextInputMode *)textInputMode{
+    for(UITextInputMode *mode in UITextInputMode.activeInputModes)
+        if([mode.primaryLanguage hasPrefix:@"en"])return mode;
+    return [super textInputMode];
+}
 - (void)trace:(NSString *)event{if(_traceInput&&_traceCount++<2000)[LRRuntimeBridge logCategory:@"GUI_INPUT" event:event];}
 - (void)insertText:(NSString *)text{
     NSMutableData *symbols=[[text dataUsingEncoding:NSUTF32LittleEndianStringEncoding] mutableCopy];uint32_t *codes=symbols.mutableBytes;
@@ -304,41 +314,21 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 }
 - (void)releaseInput{
     [_client pointerX:_pointerX y:_pointerY buttons:0];_stickyModifiers=0;_hardwareModifiers=0;[self syncModifiers];
-    _mouseButtons=0;_pointerTouchButton=0;_pointerTouch=nil;
+    _mouseButtons=0;_previousPointerButtons=0;_pointerTouchButton=0;_pointerTouch=nil;
     for(NSNumber *symbol in _pressedKeys.allValues)[_client key:symbol.unsignedIntValue down:NO];
     [_pressedKeys removeAllObjects];
 }
 - (uint32_t)symbolForKey:(UIKey *)key{
-    switch(key.keyCode){
-        case UIKeyboardHIDUsageKeyboardEscape:return 0xff1b;
-        case UIKeyboardHIDUsageKeyboardTab:return 0xff09;
-        case UIKeyboardHIDUsageKeyboardReturnOrEnter:return 0xff0d;
-        case UIKeyboardHIDUsageKeyboardDeleteOrBackspace:return 0xff08;
-        case UIKeyboardHIDUsageKeyboardDeleteForward:return 0xffff;
-        case UIKeyboardHIDUsageKeyboardRightArrow:return 0xff53;
-        case UIKeyboardHIDUsageKeyboardLeftArrow:return 0xff51;
-        case UIKeyboardHIDUsageKeyboardDownArrow:return 0xff54;
-        case UIKeyboardHIDUsageKeyboardUpArrow:return 0xff52;
-        case UIKeyboardHIDUsageKeyboardHome:return 0xff50;
-        case UIKeyboardHIDUsageKeyboardEnd:return 0xff57;
-        case UIKeyboardHIDUsageKeyboardPageUp:return 0xff55;
-        case UIKeyboardHIDUsageKeyboardPageDown:return 0xff56;
-        case UIKeyboardHIDUsageKeyboardInsert:return 0xff63;
-        case UIKeyboardHIDUsageKeypadEnter:return 0xff8d;
-        case UIKeyboardHIDUsageKeyboardPrintScreen:return 0xff61;
-        case UIKeyboardHIDUsageKeyboardPause:return 0xff13;
-        case UIKeyboardHIDUsageKeyboardScrollLock:return 0xff14;
-        case UIKeyboardHIDUsageKeyboardApplication:return 0xff67;   // Menu
-        default:break;
-    }
-    if(key.keyCode>=UIKeyboardHIDUsageKeyboardF1&&key.keyCode<=UIKeyboardHIDUsageKeyboardF12)return 0xffbe + (uint32_t)(key.keyCode-UIKeyboardHIDUsageKeyboardF1);
-    if(key.keyCode>=UIKeyboardHIDUsageKeyboardF13&&key.keyCode<=UIKeyboardHIDUsageKeyboardF24)return 0xffca + (uint32_t)(key.keyCode-UIKeyboardHIDUsageKeyboardF13);
-    // charactersIgnoringModifiers preserves printable layout information for
-    // Ctrl/Alt shortcuts. Cache the down keysym by HID so releasing Shift first
-    // cannot send a different key-up (A down followed by a up).
-    if(key.keyCode>=UIKeyboardHIDUsageKeyboardLeftControl&&key.keyCode<=UIKeyboardHIDUsageKeyboardRightGUI)return 0;
-    NSString *s=key.charactersIgnoringModifiers;NSData *d=[s dataUsingEncoding:NSUTF32LittleEndianStringEncoding];if(d.length!=4)return 0;
-    uint32_t c;memcpy(&c,d.bytes,4);return c<256?c:0x01000000|c;
+    return lr_hid_us_symbol((unsigned)key.keyCode,(key.modifierFlags&UIKeyModifierShift)!=0);
+}
+// Reserve Ctrl+Space for the guest IME instead of switching iPad keyboards.
+- (NSArray<UIKeyCommand *> *)keyCommands{
+    UIKeyCommand *ime=[UIKeyCommand keyCommandWithInput:@" " modifierFlags:UIKeyModifierControl action:@selector(guestIME:)];
+    ime.wantsPriorityOverSystemBehavior=YES;return @[ime];
+}
+- (void)guestIME:(UIKeyCommand *)command{
+    UIKeyModifierFlags saved=_hardwareModifiers;_hardwareModifiers|=UIKeyModifierControl;
+    [self stroke:' '];_hardwareModifiers=saved;[self syncModifiers];
 }
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event{
     NSMutableSet *unhandled=[presses mutableCopy];
@@ -409,7 +399,7 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 // Event-to-send latency: iOS event timestamp to the pointer message being queued.
 - (void)sendPointerFromEventTime:(NSTimeInterval)eventTime buttons:(uint8_t)buttons{
     if(!_client)return;
-    static uint8_t previous;if((buttons&~previous)&7)_pressSentAt=CACurrentMediaTime();previous=buttons;
+    if((buttons&~_previousPointerButtons)&7)_pressSentAt=CACurrentMediaTime();_previousPointerButtons=buttons;
     [_client pointerX:_pointerX y:_pointerY buttons:buttons];[self countInput:@"x11.pointer-sent"];
     if(eventTime>0){double ms=(CACurrentMediaTime()-eventTime)*1000;if(ms>=0&&ms<5000){_latencySum+=ms;_latencyCount++;_latencyMax=MAX(_latencyMax,ms);}}
 }
@@ -486,8 +476,8 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 - (void)mouseWheel:(float)y{
     [self countInput:@"gc.scroll"];_lastGCScroll=CACurrentMediaTime();
     _mouseScroll+=y*lr_input_gain([NSUserDefaults.standardUserDefaults doubleForKey:@"LinuxRunnerInput.scrollGain"],1);
-    while(fabs(_mouseScroll)>=1){uint8_t wheel=_mouseScroll>0?8:16;_mouseScroll+=_mouseScroll>0?-1:1;
-        [_client pointerX:_pointerX y:_pointerY buttons:_mouseButtons|wheel];[_client pointerX:_pointerX y:_pointerY buttons:_mouseButtons];}
+    double residual;int steps=lr_scroll_steps(_mouseScroll,1,&residual);_mouseScroll=residual;
+    [_client wheelX:0 y:steps atX:_pointerX atY:_pointerY buttons:_mouseButtons|_pointerTouchButton];
 }
 - (BOOL)position:(CGPoint)p{
     if(!_pixelWidth||!_pixelHeight||self.bounds.size.width<=0||self.bounds.size.height<=0)return NO;
@@ -512,14 +502,27 @@ static NSString *ApplicationPreflightFailure(NSURL *session) {
 }
 - (void)twoTap:(UITapGestureRecognizer *)g{if(_relativeTouchpad||_secondaryTwoFinger)[self click:4 at:[g locationInView:self]];}
 - (void)scroll:(UIPanGestureRecognizer *)g{
-    if(_relativeTouchpad){CGPoint t=[g translationInView:self];if(fabs(t.y)>=12/lr_input_gain([NSUserDefaults.standardUserDefaults doubleForKey:@"LinuxRunnerInput.scrollGain"],1)){[self click:t.y<0?16:8 at:CGPointZero];[g setTranslation:CGPointZero inView:self];}return;}
-    if(g==_twoFingerScroll){
-        if(g.state==UIGestureRecognizerStateCancelled||g.state==UIGestureRecognizerStateFailed){[self finishTwoFingerRecognizer:g other:_viewportPinch];return;}
-        CGPoint t=[g translationInView:self];LRTwoFingerIntent before=_twoFingerIntent;_twoFingerIntent=LRChooseTwoFingerIntent(before,t.x,t.y,_viewportPinch.scale);
+    if(g.state==UIGestureRecognizerStateCancelled||g.state==UIGestureRecognizerStateFailed){
+        [g setTranslation:CGPointZero inView:self];
+        if(g==_twoFingerScroll)[self finishTwoFingerRecognizer:g other:_viewportPinch];return;
+    }
+    if(!_relativeTouchpad&&g==_twoFingerScroll){
+        CGPoint t=[g translationInView:self];LRTwoFingerIntent before=_twoFingerIntent;
+        _twoFingerIntent=LRChooseTwoFingerIntent(before,t.x,t.y,_viewportPinch.scale);
         if(before!=LRTwoFingerZoom&&_twoFingerIntent==LRTwoFingerZoom)[self releaseInput];
         if(_twoFingerIntent!=LRTwoFingerScroll){[self finishTwoFingerRecognizer:g other:_viewportPinch];return;}
     }
-    CGPoint t=[g translationInView:self];if(_zoom>1.01&&g.allowedScrollTypesMask==0){_viewportOffset=CGPointMake(_viewportOffset.x+t.x,_viewportOffset.y+t.y);[g setTranslation:CGPointZero inView:self];[self setNeedsLayout];}else if(fabs(t.y)>=12/lr_input_gain([NSUserDefaults.standardUserDefaults doubleForKey:@"LinuxRunnerInput.scrollGain"],1)){[self click:t.y<0?16:8 at:[g locationInView:self]];[g setTranslation:CGPointZero inView:self];}
+    CGPoint t=[g translationInView:self];
+    if(!_relativeTouchpad&&_zoom>1.01&&g.allowedScrollTypesMask==0){
+        _viewportOffset=CGPointMake(_viewportOffset.x+t.x,_viewportOffset.y+t.y);
+        [g setTranslation:CGPointZero inView:self];[self setNeedsLayout];
+    }else if(_relativeTouchpad||[self position:[g locationInView:self]]){
+        double threshold=12/lr_input_gain([NSUserDefaults.standardUserDefaults doubleForKey:@"LinuxRunnerInput.scrollGain"],1);
+        double rx,ry;int nx=lr_scroll_steps(t.x,threshold,&rx),ny=lr_scroll_steps(t.y,threshold,&ry);
+        uint8_t held=_mouseButtons|_pointerTouchButton;
+        [_client wheelX:nx y:ny atX:_pointerX atY:_pointerY buttons:held];
+        [g setTranslation:CGPointMake(rx,ry) inView:self];
+    }
     if(g==_twoFingerScroll)[self finishTwoFingerRecognizer:g other:_viewportPinch];
 }
 - (void)wheel:(UIPanGestureRecognizer *)g{[self countInput:@"uikit.scroll"];if(!lr_pointer_use_uikit_wheel(CACurrentMediaTime(),_lastGCScroll))return;[self scroll:g];}
@@ -639,8 +642,10 @@ static __weak LRExternalDisplayController *LRCurrentExternalDisplay;
     CGRect f=CGRectMake((b.size.width-z.width)/2,(b.size.height-z.height)/2,z.width,z.height);_image.frame=f;_metal.frame=f;
 }
 - (double)presentationDelayAt:(double)now {
-    // Retain the 30 Hz cap, but do not delay the first update after idle.
-    return _lastPresentationTime ? MAX(0, 1.0/30.0-(now-_lastPresentationTime)) : 0;
+    NSProcessInfo *process=NSProcessInfo.processInfo;
+    BOOL constrained=process.lowPowerModeEnabled||process.thermalState>=NSProcessInfoThermalStateSerious;
+    unsigned rate=lr_external_frame_rate(LRRuntimeBridge.m2PerformanceProfile,_metal!=nil,constrained,(unsigned)self.view.window.screen.maximumFramesPerSecond);
+    return _lastPresentationTime ? MAX(0,1.0/rate-(now-_lastPresentationTime)) : 0;
 }
 - (void)presentFrame:(NSData *)pixels width:(uint16_t)width height:(uint16_t)height damage:(LRFrameDamage)damage {
     if(!LRExternalOutputEnabled())return;
@@ -1394,7 +1399,7 @@ static NSString *LRSessionGraphicsMode(void){
     NSString *desktopKey=[@"LinuxRunnerDesktop.environment." stringByAppendingString:LRRuntimeBridge.activeRootName];
     NSString *selectedDesktop=[NSUserDefaults.standardUserDefaults stringForKey:desktopKey];
     if(!selectedDesktop && LRRuntimeBridge.activeEnvironmentIsDebian)selectedDesktop=[NSUserDefaults.standardUserDefaults stringForKey:@"LinuxRunnerDesktop.environment"];
-    NSDictionary *files=@{@"desktop-environment":([selectedDesktop isEqual:@"plasma"]||[selectedDesktop isEqual:@"lxqt"]||[selectedDesktop isEqual:@"enlightenment"]||[selectedDesktop isEqual:@"wayfire"]||[selectedDesktop isEqual:@"hyprland"])?selectedDesktop:@"linuxrunner",@"guest-user":_sessionGuestUser,@"geometry":geometry,@"glx-mode":glxMode,@"gpu-mode":LRSessionGraphicsMode(),@"input-mode":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUIEagerInput"]?@"eager":@"legacy",@"shm-mode":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUISharedImages"]?@"sysv":@"off",@"vnc-timing":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUILowLatencyInput"]?@"threads":@"default",@"password":password,@"cookie":cookie,@"port":[NSString stringWithFormat:@"%u",port],@"audio-port":_audioPort?[NSString stringWithFormat:@"%u",_audioPort]:@"",@"display":[NSString stringWithFormat:@"%u",display]};
+    NSDictionary *files=@{@"plasma-compatibility":(![NSUserDefaults.standardUserDefaults objectForKey:@"LinuxRunnerDesktop.plasmaCompatibility"]||[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerDesktop.plasmaCompatibility"])?@"1":@"0",@"desktop-environment":([selectedDesktop isEqual:@"plasma"]||[selectedDesktop isEqual:@"lxqt"]||[selectedDesktop isEqual:@"enlightenment"]||[selectedDesktop isEqual:@"wayfire"]||[selectedDesktop isEqual:@"hyprland"])?selectedDesktop:@"linuxrunner",@"guest-user":_sessionGuestUser,@"geometry":geometry,@"glx-mode":glxMode,@"gpu-mode":LRSessionGraphicsMode(),@"input-mode":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUIEagerInput"]?@"eager":@"legacy",@"shm-mode":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUISharedImages"]?@"sysv":@"off",@"vnc-timing":[NSUserDefaults.standardUserDefaults boolForKey:@"LinuxRunnerGUILowLatencyInput"]?@"threads":@"default",@"password":password,@"cookie":cookie,@"port":[NSString stringWithFormat:@"%u",port],@"audio-port":_audioPort?[NSString stringWithFormat:@"%u",_audioPort]:@"",@"display":[NSString stringWithFormat:@"%u",display]};
     for(NSString *name in files){NSURL *url=[_sessionURL URLByAppendingPathComponent:name];if(![files[name] writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:&error]||![NSFileManager.defaultManager setAttributes:@{NSFilePosixPermissions:@0600} ofItemAtPath:url.path error:&error]){[self message:error.localizedDescription];return;}}
     NSString *xkb=[NSUserDefaults.standardUserDefaults stringForKey:@"LinuxRunnerGUIXKBMode"]?:@"xkb";
     [xkb writeToURL:[_sessionURL URLByAppendingPathComponent:@"xkb-mode"] atomically:YES encoding:NSUTF8StringEncoding error:nil];

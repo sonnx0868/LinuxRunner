@@ -9,22 +9,22 @@
 #include "kernel/memory.h"
 #include "kernel/mm.h"
 #include "kernel/ipc.h"
+#include "kernel/anon_budget.h"
 #include <errno.h>
 extern void (*runtime_memory_failure)(const char *, uint64_t, uint64_t, int, int, int);
 
 #if ANON_MMAP_LIMIT_PAGES > 0
 _Atomic long anon_page_count;
+_Atomic long anon_page_limit = ANON_MMAP_LIMIT_PAGES;
 
 bool anon_pages_reserve(long pages) {
-    long count = atomic_load(&anon_page_count);
-    do {
-        if (pages > ANON_MMAP_LIMIT_PAGES || count > ANON_MMAP_LIMIT_PAGES - pages) {
-            if (runtime_memory_failure)
-                runtime_memory_failure("anonymous page budget", 0, (uint64_t)pages * PAGE_SIZE, 0, 0, ENOMEM);
-            printk("MEMORY_BUDGET: tid=%d requested-pages=%ld committed-pages=%ld limit-pages=%d\n", current->pid, pages, count, ANON_MMAP_LIMIT_PAGES);
-            return false;
-        }
-    } while (!atomic_compare_exchange_weak(&anon_page_count, &count, count + pages));
+    long limit = atomic_load(&anon_page_limit);
+    if (!anon_budget_try_reserve(&anon_page_count, limit, pages)) {
+        if (runtime_memory_failure)
+            runtime_memory_failure("anonymous page budget", 0, (uint64_t)pages * PAGE_SIZE, 0, 0, ENOMEM);
+        printk("MEMORY_BUDGET: tid=%d requested-pages=%ld committed-pages=%ld limit-pages=%ld\n", current->pid, pages, atomic_load(&anon_page_count), limit);
+        return false;
+    }
     return true;
 }
 

@@ -1,0 +1,70 @@
+format_version: '13'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: ios
+workflows:
+  m2-jit:
+    description: iPad 16 GB, Apple M2 tuning, Metal capabilities and automatic StikDebug request.
+    envs:
+    - LINUXRUNNER_JIT: 'YES'
+    before_run:
+    - _prepare
+    - _check
+    after_run:
+    - _archive
+  m2-interpreter:
+    description: Interpreter fallback when StikDebug authorization is unavailable.
+    envs:
+    - LINUXRUNNER_JIT: 'NO'
+    before_run:
+    - _prepare
+    - _check
+    after_run:
+    - _archive
+  _prepare:
+    steps:
+    - git-clone@8:
+        inputs:
+        - clone_submodules: 'false'
+    - script@1:
+        title: Install build tools and fetch pinned dependencies
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -euo pipefail
+            brew install cmake pkg-config lld ninja libarchive
+            python3 -m venv build/ci-venv
+            source build/ci-venv/bin/activate
+            python3 -m pip install 'meson==1.8.3' 'Mako==1.3.10'
+            export PATH="$PWD/build/ci-venv/bin:$(brew --prefix lld)/bin:$PATH"
+            envman add --key PATH --value "$PATH"
+            git submodule update --init --recursive --checkout -- deps/libapps deps/libarchive deps/glslang deps/spirv-cross
+            scripts/bootstrap-macos.sh
+  _check:
+    steps:
+    - script@1:
+        title: Check input, memory policy and native RFB receiver
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -euo pipefail
+            bash scripts/test-m2-portable.sh
+            bash scripts/test-m2-macos.sh
+            python3 scripts/generate-gui-support-manifest.py --check
+  _archive:
+    steps:
+    - script@1:
+        title: Build Metal dependencies and unsigned IPA
+        inputs:
+        - content: |-
+            #!/bin/bash
+            set -euo pipefail
+            export GPU_DEPS="$PWD/build/gpu-sources"
+            bash scripts/prepare-gpu-sources.sh
+            scripts/build-gpu-deps.sh iphoneos
+            export LINUXRUNNER_M2_PROFILE=YES LINUXRUNNER_VIRGL=YES
+            export ARTIFACT_NAME="LinuxRunner-M2-${LINUXRUNNER_JIT}"
+            scripts/build-ipa.sh --unsigned
+            python3 scripts/verify-ipa.py build/releases
+            mkdir -p "$BITRISE_DEPLOY_DIR"
+            cp build/releases/*.ipa build/releases/*.sha256 docs/IPAD-M2-VI.md "$BITRISE_DEPLOY_DIR/"
+    - deploy-to-bitrise-io@2: {}

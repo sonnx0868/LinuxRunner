@@ -2,6 +2,8 @@
 
 jit=false
 jit_emit=false
+host_cpu=generic
+if [[ ${LINUXRUNNER_M2_PROFILE:-NO} == YES ]]; then host_cpu=apple-m2; fi
 # JIT-capable app variant (LINUXRUNNER_JIT=YES): the translator is compiled in
 # but only runs once iOS grants executable memory; the default build stays
 # interpreter-only because the JIT build's gadgets are slower when it is off.
@@ -83,7 +85,7 @@ EOF
         guest_arch_opt="-Dguest_arch=$GUEST_ARCH"
     fi
     (set -x; meson "$SRCROOT" --cross-file "$crossfile" $guest_arch_opt \
-        -Djit=$jit -Djit_emit=$jit_emit -Dcli_aot=) || exit $?
+        -Djit=$jit -Djit_emit=$jit_emit -Dcli_aot= -Dhost_cpu=$host_cpu) || exit $?
     config=$(meson introspect --buildoptions)
 fi
 
@@ -108,7 +110,7 @@ guest_arch=${GUEST_ARCH:-arm64}
 # Only the isolated bootstrap target may compile the native backend; it still
 # installs the native fault adapter; static images are linked separately only
 # when the checked Apple image build is explicitly requested.
-(set -x; meson configure -Djit=$jit -Djit_emit=$jit_emit -Dcli_aot= -Dvdso_required=true) || exit $?
+(set -x; meson configure -Djit=$jit -Djit_emit=$jit_emit -Dcli_aot= -Dhost_cpu=$host_cpu -Dvdso_required=true) || exit $?
 for var in buildtype log b_ndebug b_sanitize log_handler kernel kconfig guest_arch; do
     old_value=$(python3 -c "import sys, json; v = next(x['value'] for x in json.load(sys.stdin) if x['name'] == '$var'); print(str(v).lower() if isinstance(v, bool) else ','.join(v) if isinstance(v, list) else v)" <<< $config)
     new_value=${!var}

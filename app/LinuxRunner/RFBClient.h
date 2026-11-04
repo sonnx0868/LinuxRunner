@@ -20,5 +20,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)key:(uint32_t)keysym down:(BOOL)down;
 - (void)typeKeysyms:(const uint32_t *)symbols count:(size_t)count;
 - (void)pointerX:(uint16_t)x y:(uint16_t)y buttons:(uint8_t)buttons;
+- (void)wheelX:(int)horizontal y:(int)vertical atX:(uint16_t)x atY:(uint16_t)y buttons:(uint8_t)buttons;
 @end
 NS_ASSUME_NONNULL_END

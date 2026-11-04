@@ -115,6 +115,8 @@
     if (@available(iOS 13, *)) {
         [self.infoButton setImage:[UIImage systemImageNamed:@"gear"] forState:UIControlStateNormal];
         [self.pasteButton setImage:[UIImage systemImageNamed:@"doc.on.clipboard"] forState:UIControlStateNormal];
+        self.pasteButton.accessibilityLabel = @"Paste clipboard text";
+        self.pasteButton.accessibilityHint = @"Inserts copied text into this Linux terminal";
         [self.hideKeyboardButton setImage:[UIImage systemImageNamed:@"keyboard.chevron.compact.down"] forState:UIControlStateNormal];
         
         [self.tabKey setTitle:nil forState:UIControlStateNormal];

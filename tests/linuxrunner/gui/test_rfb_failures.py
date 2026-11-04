@@ -13,7 +13,7 @@ def exact(s,n):
   data+=part
  return data
 results=[]
-for case,needle in [('no-auth','authentication required'),('oversize','exceed limits'),('bad-rectangle','invalid rectangle'),('hextile-overflow','Hextile'),('hextile-no-background','Hextile')]:
+for case,needle in [('no-auth','authentication required'),('oversize','exceed limits'),('bad-rectangle','invalid rectangle'),('hextile-overflow','Hextile'),('hextile-no-background','Hextile'),('copyrect-source','CopyRect source')]:
  server=socket.socket();server.bind(('127.0.0.1',0));server.listen(1);server.settimeout(10);port=server.getsockname()[1]
  def serve():
   try:
@@ -27,6 +27,7 @@ for case,needle in [('no-auth','authentication required'),('oversize','exceed li
     if case=='oversize':s.recv(16);return
     exact(s,20);header=exact(s,4);exact(s,struct.unpack('!H',header[2:])[0]*4);exact(s,10)
     if case=='bad-rectangle':s.sendall(b'\x00\x00\x00\x01'+struct.pack('!HHHHi',31,31,2,2,0))
+    elif case=='copyrect-source':s.sendall(b'\x00\x00\x00\x01'+struct.pack('!HHHHiHH',0,0,8,8,1,30,30))
     else:
      tile=b'\x0e'+bytes(8)+b'\x01\xff\xff' if case=='hextile-overflow' else b'\x00'
      s.sendall(b'\x00\x00\x00\x01'+struct.pack('!HHHHi',0,0,8,8,5)+tile)

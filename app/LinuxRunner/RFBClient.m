@@ -126,8 +126,9 @@ static double LRTransportClock(void){struct timespec t;clock_gettime(CLOCK_MONOT
     _pixels=[NSMutableData dataWithLength:bytes];_raw=[NSMutableData new];
     // SetPixelFormat: little-endian 32-bit truecolor B,G,R,pad.
     const uint8_t format[20]={0,0,0,0,32,24,0,1,0,255,0,255,0,255,16,8,0,0,0,0};
-    // Hextile (bounded 16x16 tiles), Raw fallback, DesktopSize.
-    const uint8_t encodings[16]={2,0,0,3,0,0,0,5,0,0,0,0,255,255,255,33};
+    // CopyRect reuses pixels already received (window moves); Hextile, Raw
+    // and DesktopSize remain available. No extra guest rendering is requested.
+    const uint8_t encodings[20]={2,0,0,4,0,0,0,1,0,0,0,5,0,0,0,0,255,255,255,33};
     return [self write:format count:sizeof format]&&[self write:encodings count:sizeof encodings];
 }
 - (BOOL)request:(BOOL)incremental {
@@ -155,8 +156,12 @@ static double LRTransportClock(void){struct timespec t;clock_gettime(CLOCK_MONOT
         size_t bytes;
         if(encoding==0xffffff21){if(x||y||!lr_rfb_dimensions(w,h,&bytes))return NO;
             _width=w;_height=h;_pixels=[NSMutableData dataWithLength:bytes];changed=YES;damage=(LRFrameDamage){0,0,w,h};continue;}
-        if((encoding!=0&&encoding!=5)||!lr_rfb_rectangle(_width,_height,x,y,w,h,&bytes)){[self fail:@"Unsupported encoding or invalid rectangle"];return NO;}
-        if(encoding==5){if(![self hextileX:x y:y width:w height:h]){[self fail:@"Invalid Hextile tile"];return NO;}}
+        if((encoding!=0&&encoding!=1&&encoding!=5)||!lr_rfb_rectangle(_width,_height,x,y,w,h,&bytes)){[self fail:@"Unsupported encoding or invalid rectangle"];return NO;}
+        if(encoding==1){
+            uint16_t source[2];if(![self read:source count:sizeof source])return NO;
+            if(!lr_rfb_copy_rect(_pixels.mutableBytes,_width,_height,x,y,w,h,ntohs(source[0]),ntohs(source[1]))){[self fail:@"Invalid CopyRect source"];return NO;}
+        }
+        else if(encoding==5){if(![self hextileX:x y:y width:w height:h]){[self fail:@"Invalid Hextile tile"];return NO;}}
         else if(!x&&w==_width){
             // Full-width rows are contiguous in the owned framebuffer. Receive
             // there directly instead of allocating/copying a second rectangle.
@@ -294,5 +299,14 @@ static double LRTransportClock(void){struct timespec t;clock_gettime(CLOCK_MONOT
     if(!transition&&open){memcpy(open.mutableBytes,data,sizeof data);os_unfair_lock_unlock(&_motionLock);atomic_fetch_add(&_coalescedMotion,1);return;}
     os_unfair_lock_unlock(&_motionLock);
     [self enqueue:[NSMutableData dataWithBytes:data length:sizeof data] keySymbols:NO motion:!transition];
+}
+- (void)wheelX:(int)horizontal y:(int)vertical atX:(uint16_t)x atY:(uint16_t)y buttons:(uint8_t)buttons {
+    uint8_t packets[LR_RFB_WHEEL_BYTES];
+    size_t count=lr_rfb_wheel_packets(packets,sizeof packets,x,y,buttons,horizontal,vertical);
+    if(!count)return;
+    // One bounded FIFO job per input event, with every wheel press/release
+    // intact. Fast diagonal scroll must not consume 128 queue slots at once.
+    os_unfair_lock_lock(&_motionLock);_lastButtons=buttons&7;os_unfair_lock_unlock(&_motionLock);
+    [self enqueue:[NSData dataWithBytes:packets length:count]];
 }
 @end

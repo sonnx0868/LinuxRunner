@@ -9,5 +9,5 @@ sums=''.join(f"{r['sha256']}  {r['name']}\n" for r in resources)
 for name,content in [('support-manifest.json',manifest),('support.sha256',sums)]:
  if '--check' in sys.argv:
   assert (bundle/name).read_text()==content,f'{name} stale; run {__file__}'
- else:(bundle/name).write_text(content)
+ else:(bundle/name).write_text(content, newline='\n')
 print('GUI support manifest:',len(resources),'resources; verified' if '--check' in sys.argv else 'generated')

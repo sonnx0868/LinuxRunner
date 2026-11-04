@@ -60,6 +60,8 @@ if [ "$environment" = plasma ]; then
  if mkdir -p "$plasma_config" && [ ! -e "$plasma_config/kscreenlockerrc" ]; then
   printf '[Daemon]\nAutolock=false\nLockOnResume=false\n' > "$plasma_config/kscreenlockerrc" && echo 'DESKTOP_STARTUP: plasma screen locker defaults written (autolock off; iOS locks the device)'
  fi
+ LR_PLASMA_COMPATIBILITY=$(cat "$session/plasma-compatibility" 2>/dev/null || echo 1)
+ . ./plasma-env.sh
  startplasma-x11 > "$session/plasma.log" 2>&1 & wm=$!; panel=$wm; surface=$wm; limit=960   # Plasma needs minutes under the interpreter
  echo "DESKTOP_STARTUP: environment=plasma (experimental) session=$wm"
 elif [ "$environment" = lxqt ]; then

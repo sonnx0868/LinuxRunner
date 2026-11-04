@@ -2,6 +2,8 @@
 
 Most users install the IPA. These instructions build the **LinuxRunner** scheme in `iSH.xcodeproj`, preserving version **1.1.0**, build **900** and bundle identifier `dev.linuxrunner.app`.
 
+For the optional iPad M2 / 16 GB build and Bitrise workflows, see [the Vietnamese setup guide](IPAD-M2-VI.md).
+
 ## Tool Requirements
 
 Use macOS with full Xcode and an iPhoneOS SDK, Git, Python 3, Meson, Ninja, CMake, pkg-config, `ld.lld` and system archive/signing tools on PATH. The retained Build 900 archive records iPhoneOS SDK **27.2**, ARM64 and minimum OS **15.0**. The deployment target is not broad device/older-OS qualification. The GPU dependency build additionally uses GN/depot_tools, rsync and ANGLE's downloaded toolchain inputs.
@@ -76,7 +78,7 @@ Default output is `build/releases/LinuxRunner.ipa` with the retained archive, sy
 
 Unsigned mode adds an ad-hoc signature without Apple provisioning. A compatible installation method must provide device authorization. For your own signing, configure an Apple team in Xcode and use `TEAM_ID=YOUR_TEAM_ID scripts/build-ipa.sh`, adding the variant variables above if desired. Never commit certificates, keys or provisioning profiles. Optional App Group access uses `group.dev.linuxrunner.app`; a private-container fallback exists.
 
-Alpine 3.24.2 is checksum-pinned. `ROOTFS_CACHE` can provide the cached archive; validation still applies. `verify-ipa.py` checks package identity, rootfs hash, 90 GUI resources, source fingerprint, device Mach-O dependencies, IPA/archive identity and matching symbols. Set `LINUXRUNNER_VERIFY_SOURCE_TREE` and `LINUXRUNNER_EXPECTED_SOURCE_COMMIT` when checking a retained artifact against its source.
+Alpine 3.24.2 is checksum-pinned. `ROOTFS_CACHE` can provide the cached archive; validation still applies. `verify-ipa.py` checks package identity, rootfs hash, all manifest-listed GUI resources, source fingerprint, device Mach-O dependencies, IPA/archive identity and matching symbols. Set `LINUXRUNNER_VERIFY_SOURCE_TREE` and `LINUXRUNNER_EXPECTED_SOURCE_COMMIT` when checking a retained artifact against its source.
 
 ## Guest Helpers and Runtime Tests
 

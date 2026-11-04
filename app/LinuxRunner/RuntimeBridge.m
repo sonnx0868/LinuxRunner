@@ -1,5 +1,7 @@
 #import "RuntimeBridge.h"
 #include "LinuxAccountPolicy.h"
+#include "PerformancePolicy.h"
+#include <os/proc.h>
 #import "GuestMetalBackend.h"
 #import "FileTransfer.h"
 #import "FileArchive.h"
@@ -563,6 +565,42 @@ static NSString *const LRJITCrashedPathsKey=@"LinuxRunnerJITCrashedPaths";
 static BOOL LRJITActive;
 static NSString *LRJITDetail=@"Interpreter";
 static NSString *LRJITLastFailure;   // reason of the last refused or failed activation, nil if none
++ (BOOL)m2PerformanceProfile {
+    return LINUXRUNNER_M2_PROFILE && UIDevice.currentDevice.userInterfaceIdiom==UIUserInterfaceIdiomPad
+        && NSProcessInfo.processInfo.physicalMemory>=12*LR_GIB;
+}
++ (BOOL)autoRequestJIT {
+    NSUserDefaults *d=NSUserDefaults.standardUserDefaults;
+    return [d objectForKey:@"LinuxRunnerAutoRequestJIT"]?[d boolForKey:@"LinuxRunnerAutoRequestJIT"]:self.m2PerformanceProfile;
+}
++ (void)setAutoRequestJIT:(BOOL)enabled {
+    [NSUserDefaults.standardUserDefaults setBool:enabled forKey:@"LinuxRunnerAutoRequestJIT"];
+}
++ (BOOL)requestJITAttachment {
+    if(!NSThread.isMainThread||!self.jitCompiledIn)return NO;
+    NSURLComponents *url=[NSURLComponents componentsWithString:@"stikdebug://enable-jit"];
+    NSMutableArray *items=[NSMutableArray arrayWithArray:@[
+        [NSURLQueryItem queryItemWithName:@"bundle-id" value:NSBundle.mainBundle.bundleIdentifier],
+        [NSURLQueryItem queryItemWithName:@"pid" value:[NSString stringWithFormat:@"%d",getpid()]]]];
+    if(self.requiresPreparedJITRegion)[items addObject:[NSURLQueryItem queryItemWithName:@"script-name" value:@"universal"]];
+    url.queryItems=items;
+    if(![UIApplication.sharedApplication canOpenURL:url.URL]){
+        [self logCategory:@"JIT" event:@"StikDebug unavailable; interpreter fallback"];return NO;
+    }
+    [UIApplication.sharedApplication openURL:url.URL options:@{} completionHandler:^(BOOL opened){
+        [self logCategory:@"JIT" event:opened?@"StikDebug attachment requested":@"StikDebug could not open"];
+    }];
+    return YES;
+}
++ (void)requestAutomaticJITIfNeeded {
+    // Once per app process, never a redirect loop after returning from StikDebug.
+    static BOOL requested;
+    if(!NSThread.isMainThread){dispatch_async(dispatch_get_main_queue(),^{[self requestAutomaticJITIfNeeded];});return;}
+    if(requested||!self.autoRequestJIT||!self.jitCompiledIn||LRJITActive||self.debuggerAttached
+        ||[self.executionMode isEqual:@"interpreter"]||UIApplication.sharedApplication.applicationState!=UIApplicationStateActive)return;
+    requested=YES;
+    [self requestJITAttachment];
+}
 + (BOOL)virglCompiledIn {
 #if LINUXRUNNER_VIRGL_BUILD
     return YES;
@@ -691,8 +729,20 @@ static NSString *LRJITLastFailure;   // reason of the last refused or failed act
 }
 + (void)prepareExecutionBackendAtLaunch {
     [self migrateDesktopSizeToLandscape];
+    static dispatch_once_t profile;
+    dispatch_once(&profile,^{
+        if(!self.m2PerformanceProfile)return;
+        // Registration supplies a default; an explicitly saved choice wins.
+        [NSUserDefaults.standardUserDefaults registerDefaults:@{@"LinuxRunnerDesktop.metalPresentation":@YES}];
+#if ANON_MMAP_LIMIT_PAGES > 0
+        uint64_t available=os_proc_available_memory();
+        uint64_t budget=lr_m2_anonymous_budget(NSProcessInfo.processInfo.physicalMemory,available);
+        atomic_store(&anon_page_limit,(long)(budget/PAGE_SIZE));
+        [self logCategory:@"MEMORY" event:[NSString stringWithFormat:@"M2 profile: anonymous budget=%llu MiB, startup allowance=%llu MiB",(unsigned long long)(budget>>20),(unsigned long long)(available>>20)]];
+#endif
+    });
     static dispatch_once_t observe;
-    dispatch_once(&observe,^{[NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n){[LRRuntimeBridge retryJITWhenAuthorized];}];});
+    dispatch_once(&observe,^{[NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n){[LRRuntimeBridge retryJITWhenAuthorized];[LRRuntimeBridge requestAutomaticJITIfNeeded];}];});
     NSUserDefaults *defaults=NSUserDefaults.standardUserDefaults;
     NSString *crashedPath=[defaults stringForKey:LRJITAttemptKey];
     if(crashedPath){
@@ -708,6 +758,7 @@ static NSString *LRJITLastFailure;   // reason of the last refused or failed act
     // Automatic and JIT: use what iOS already allows (e.g. launched from StikDebug).
     if(!self.requiresPreparedJITRegion||self.debuggerAttached){NSString *why=nil;[self activateJIT:&why];}
     else LRJITDetail=@"Interpreter · attach with StikDebug in Settings › Execution Engine to start the JIT";
+    dispatch_async(dispatch_get_main_queue(),^{[self requestAutomaticJITIfNeeded];});
 }
 + (BOOL)activeEnvironmentIsDebian {
     // Catalog identity is authoritative; no inference from a library name.

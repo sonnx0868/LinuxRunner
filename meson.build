@@ -1,6 +1,12 @@
 project('ish', 'c',
     default_options: ['default_library=static', 'c_std=gnu11', 'warning_level=2'])
 cc = meson.get_compiler('c')
+if get_option('host_cpu') == 'apple-m2'
+    if host_machine.cpu_family() != 'aarch64'
+        error('apple-m2 tuning requires an ARM64 target')
+    endif
+    add_project_arguments('-mcpu=apple-m2', language: 'c')
+endif
 
 # Expose the Darwin/POSIX declarations used by the ARM64 host context helpers.
 if host_machine.system() == 'darwin' and host_machine.cpu_family() == 'aarch64'

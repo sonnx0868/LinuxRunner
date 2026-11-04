@@ -1340,6 +1340,7 @@ struct StorageManagementView: View {
 }
 
 struct ExecutionEngineView: View {
+    @State private var automaticAttachment = LRRuntimeBridge.autoRequestJIT()
     @State private var status = LRRuntimeBridge.executionBackendStatus() as? [String: Any] ?? [:]
     @State private var report = LRRuntimeBridge.jitStatusReport() as? [String: Any] ?? [:]
     @State private var mode = LRRuntimeBridge.executionMode()
@@ -1373,6 +1374,9 @@ struct ExecutionEngineView: View {
                         Text("Automatic").tag("automatic")
                         Text("JIT").tag("jit")
                     }.onChange(of: mode) { LRRuntimeBridge.setExecutionMode($0) }
+                    Toggle("Open StikDebug on launch", isOn: $automaticAttachment)
+                        .onChange(of: automaticAttachment) { LRRuntimeBridge.setAutoRequestJIT($0) }
+                    Text("Once per launch. Set up StikDebug first; after authorization, return to LinuxRunner.").font(.caption)
                 } footer: {
                     Text("Interpreter always works. Automatic and JIT start the JIT only after iOS allows it — LinuxRunner launched or attached by StikDebug — and otherwise keep the interpreter. The active backend above is what actually runs.")
                 }
@@ -1423,18 +1427,8 @@ struct ExecutionEngineView: View {
         refresh()
     }
     private func requestAttachment() {
-        guard let identifier = Bundle.main.bundleIdentifier,
-              var components = URLComponents(string: "stikdebug://enable-jit") else { return }
-        var items = [URLQueryItem(name: "bundle-id", value: identifier), URLQueryItem(name: "pid", value: String(ProcessInfo.processInfo.processIdentifier))]
-        if LRRuntimeBridge.requiresPreparedJITRegion() { items.append(URLQueryItem(name: "script-name", value: "universal")) }
-        components.queryItems = items
-        guard let url = components.url, UIApplication.shared.canOpenURL(url) else {
-            message = "StikDebug is not installed or not set up. Install it, pair this device, then try again."
-            return
-        }
-        requested = true
-        LRRuntimeBridge.logCategory("JIT", event: "StikDebug attachment requested")
-        UIApplication.shared.open(url, options: [:]) { opened in if !opened { requested = false; message = "StikDebug could not be opened." } }
+        requested = LRRuntimeBridge.requestJITAttachment()
+        if !requested { message = "StikDebug is not installed or could not open. Install it and pair this iPad first." }
     }
 }
 
@@ -2027,6 +2021,7 @@ private struct SharedFoldersView: View {
 }
 
 private struct DesktopEnvironmentView: View {
+    @AppStorage("LinuxRunnerDesktop.plasmaCompatibility") private var plasmaCompatibility = true
     @AppStorage private var environment: String
     init() {
         let key = "LinuxRunnerDesktop.environment." + LRRuntimeBridge.activeRootName()
@@ -2068,6 +2063,10 @@ private struct DesktopEnvironmentView: View {
         } header: { Text("Open Desktop Starts") } footer: { Text("Applies to the next desktop start. Stop a running desktop first to switch.") }
         Section {
             if installed { Label("KDE Plasma installed", systemImage: "checkmark.circle") }
+            if installed {
+                Toggle("Plasma Compatibility Mode", isOn: $plasmaCompatibility)
+                Text("Disables Qt GLX and KWin effects. Restart the desktop after changing this.").font(.caption)
+            }
             else if LRRuntimeBridge.activeEnvironmentIsArch() { Text("Arch's current Plasma 6.8 packages require Wayland. LinuxRunner currently supports X11; use LinuxRunner Desktop. Plasma on Arch has not been validated.").foregroundColor(.secondary) }
             else if !LRRuntimeBridge.activeEnvironmentIsDebian() { Text("KDE Plasma installation is available for Debian environments.").foregroundColor(.secondary) }
             else {

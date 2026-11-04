@@ -26,5 +26,5 @@ int main(int argc,char **argv){@autoreleasepool{
  while(NSProcessInfo.processInfo.systemUptime-start<6){[lock lock];BOOL done=ended;[lock unlock];if(done)break;[NSThread sleepForTimeInterval:.005];}
  [client stop];[lock lock];NSMutableArray *retainedHashes=[NSMutableArray new];for(NSData *data in snapshots)[retainedHashes addObject:SHA(data)];
  NSDictionary *result=@{@"frames":[frames copy],@"retained_sha256":[retainedHashes copy],@"peak_intermediate_raw_bytes":@(rawBytes),@"ended":@(ended),@"failed":@(failed),@"delivery":patches?@"patch":@"snapshot"};
- [[NSJSONSerialization dataWithJSONObject:result options:NSJSONWritingPrettyPrinted error:nil]writeToFile:@(argv[3]) atomically:YES];[lock unlock];return ended&&!failed&&frames.count==5?0:1;
+ [[NSJSONSerialization dataWithJSONObject:result options:NSJSONWritingPrettyPrinted error:nil]writeToFile:@(argv[3]) atomically:YES];[lock unlock];return ended&&!failed&&frames.count==8?0:1;
 }}

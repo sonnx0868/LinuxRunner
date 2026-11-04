@@ -31,6 +31,10 @@ def serve():
    color=bytes([0x12,0x34,0x56,0xff])
    for y in range(8):image[y*32*4:(y*32+8)*4]=color*8
    remember(image,32,16);update(s,rectangle(0,0,8,8,5)+b'\2'+color)
+   for x,y,w,h,sx,sy in [(2,4,20,10,2,1),(2,0,20,10,2,4),(6,2,18,6,1,2)]:
+    original=bytes(image)
+    for row in range(h):image[((y+row)*32+x)*4:((y+row)*32+x+w)*4]=original[((sy+row)*32+sx)*4:((sy+row)*32+sx+w)*4]
+    remember(image,32,16);update(s,rectangle(x,y,w,h,1)+struct.pack('!HH',sx,sy))
    image=bytearray(bytes(range(128))*4);remember(image,16,8);update(s,rectangle(0,0,16,8,-223)+rectangle(0,0,16,8,0)+image,2)
    # An incomplete full-width frame must never be delivered to either callback.
    update(s,rectangle(0,0,16,8,0)+bytes([0x7f])*150)
@@ -45,4 +49,4 @@ with tempfile.TemporaryDirectory() as tmp:
 report=json.loads(out.read_text());assert report['frames']==expected,report
 assert report['retained_sha256']==[e['sha256'] for e in expected],report
 assert report['peak_intermediate_raw_bytes']==a.expect_raw_bytes,report
-print('RFB_DECODE_PASS',a.delivery,'5 pixel snapshots, resize and truncation; peak Raw scratch',report['peak_intermediate_raw_bytes'])
+print('RFB_DECODE_PASS',a.delivery,'8 pixel snapshots, overlapping CopyRect, resize and truncation; peak Raw scratch',report['peak_intermediate_raw_bytes'])

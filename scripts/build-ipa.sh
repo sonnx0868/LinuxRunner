@@ -45,6 +45,7 @@ if [[ $diagnostic == YES ]]; then args+=(CODE_SIGN_ENTITLEMENTS=app/LinuxRunner/
 # Optional variants (app/AppARM64.xcconfig): JIT-capable runtime, GPU device
 # (needs scripts/build-gpu-deps.sh iphoneos first). Both stay off until enabled in Settings.
 if [[ ${LINUXRUNNER_JIT:-NO} == YES ]]; then args+=(LINUXRUNNER_JIT=YES); fi
+if [[ ${LINUXRUNNER_M2_PROFILE:-NO} == YES ]]; then args+=(LINUXRUNNER_M2_PROFILE=YES); fi
 if [[ ${LINUXRUNNER_VIRGL:-NO} == YES ]]; then
     test -f build/gpu/iphoneos/lib/libangle.a || { echo "GPU dependencies missing: run scripts/build-gpu-deps.sh iphoneos" >&2; exit 1; }
     args+=(LINUXRUNNER_VIRGL=YES)

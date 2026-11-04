@@ -3,6 +3,8 @@ option('nolog', type: 'string', value: '')
 option('log_handler', type: 'string', value: 'dprintf')
 
 option('engine', type: 'combo', choices: ['asbestos'], value: 'asbestos')
+option('host_cpu', type: 'combo', choices: ['generic', 'apple-m2'], value: 'generic',
+       description: 'Native runtime CPU tuning (does not change guest HWCAP)')
 option('kernel', type: 'combo', choices: ['ish'], value: 'ish')
 option('kconfig', type: 'array', value: [])
 

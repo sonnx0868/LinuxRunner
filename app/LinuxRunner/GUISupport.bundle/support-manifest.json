@@ -43,8 +43,13 @@
       "mode": "0644"
     },
     {
+      "name": "chromium-m2.sh",
+      "sha256": "ecadbf73d92acf8697189c2e2e3a8b44a5dea64742be683538dd163c7e1a1801",
+      "mode": "0755"
+    },
+    {
       "name": "desktop-components.sh",
-      "sha256": "70d3176a1d7b0ddc12a4df4906c05f5abaa5d4b3999a4bf66c60dbbb49e0f26c",
+      "sha256": "7a3044f4983b075e40e54217bb14c937775c2edc38f18e4064f3d505a540c73d",
       "mode": "0755"
     },
     {
@@ -393,6 +398,11 @@
       "mode": "0755"
     },
     {
+      "name": "plasma-env.sh",
+      "sha256": "df16d769b2351d99ab9cf72f5c2992bd1acf1b4d6484c380d94d9e37d57289fc",
+      "mode": "0755"
+    },
+    {
       "name": "prepare-window-observer.sh",
       "sha256": "b18cc4cebbf1e6b772495288b2eb3543c7036281742157ca73bdadaf9d826416",
       "mode": "0755"
@@ -410,6 +420,11 @@
     {
       "name": "session.sh",
       "sha256": "7d33bc02a949ae221e24f9bf5861a8fb0238211b3c125d2f1d1a2bb46bd60ba0",
+      "mode": "0755"
+    },
+    {
+      "name": "setup-debian-m2.sh",
+      "sha256": "b6cddeb13c123f503d3e853e615b01dbbd5b75c9678cf14ba911ccc1244b91ca",
       "mode": "0755"
     },
     {
