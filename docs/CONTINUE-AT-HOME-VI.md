@@ -1,5 +1,27 @@
 # Tiếp tục LinuxRunner trên máy ở nhà
 
+## Cách đơn giản: mở chat mới từ source GitHub
+
+Clone đúng branch bên dưới, mở thư mục trong Codex rồi gửi:
+
+> Đọc docs/CONTINUE-AT-HOME-VI.md rồi tiếp tục LinuxRunner cho iPad Pro M2
+> 16 GB, iPadOS 27, Debian 13 aarch64. Ưu tiên tốc độ và độ mượt. Bản sửa
+> Chromium mới đã commit nhưng chưa build IPA; kiểm tra rồi build m2-jit
+> trên Bitrise và phát hành bản mới. Không coi Chromium đã chạy được khi
+> chưa có xác nhận từ iPad.
+
+Source và ghi chú đủ để tiếp tục công việc; cách này không sao chép toàn bộ
+lịch sử chat. GitHub và Bitrise ở máy nhà cần đăng nhập tài khoản của bạn.
+
+### Trạng thái chính xác lúc chuyển máy
+
+- Commit sửa Chromium: `225e46b` (đã đẩy lên branch bên dưới).
+- Kiểm tra shell trên Windows và manifest 95 resources đã qua.
+- Chưa chạy Bitrise cho commit sửa Chromium. Không có build #8 được khởi tạo.
+- Build #7 / IPA 1007 đang có trên Bitrise và GitHub là bản trước sửa zygote.
+- Việc tiếp theo: build source mới, kiểm tra test macOS, tải IPA và phát hành.
+- Tài liệu này được lưu ở commit kế tiếp commit sửa Chromium.
+
 ## Source
 
 - Repo: https://github.com/sonnx0868/LinuxRunner
