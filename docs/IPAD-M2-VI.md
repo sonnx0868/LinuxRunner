@@ -94,6 +94,20 @@ Launcher dùng `--no-sandbox --no-zygote` vì sandbox Linux của Chromium chưa
 
 ### Về crash Chromium trong log bạn gửi
 
+Log **1008** tiếp theo đã khác lỗi zygote: `mmap(NULL, 0x810000, PROT_NONE,
+MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, ...)` trả `ENOMEM`, rồi Chromium báo
+`pthread_create: Resource temporarily unavailable (11)` và `SIGTRAP`.
+Vùng 0x810000 là dạng stack glibc 8 MiB kèm guard 64 KiB. Log không đủ để
+kết luận RAM vật lý đã hết hoặc chính xác giới hạn nào từ chối cấp phát.
+
+Bản sửa tiếp theo cho phép private PROT_NONE từ 1 MiB dùng demand-zero:
+giữ nguyên dung lượng stack và guard nhưng chỉ cấp backing khi trang được dùng.
+Ngưỡng cũ 16 MiB bỏ sót stack 8 MiB. Bài thử macOS cố tình từ chối host mmap
+0x810000, kiểm tra 48 stack cùng tồn tại, dữ liệu riêng, zero-fill, guard,
+mprotect và unmap. Crash mới giữ số đo host virtual/resident/footprint,
+memory allowance và anonymous budget nếu có lỗi cấp phát. Đây chưa phải
+xác nhận Chromium chạy thành công trên iPad.
+
 **Bản chứa sửa zygote là IPA 1008**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008).
 Trong LinuxRunner mở **Settings → App Updates → Check Now**, tải rồi chuyển
 sang LCSign ký/cài với cùng bundle ID. Đóng và mở lại app/desktop sau cập nhật.

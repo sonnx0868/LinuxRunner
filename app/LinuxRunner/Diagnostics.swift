@@ -83,6 +83,12 @@ struct GuestCrashReport: Codable, Identifiable {
         if output.contains("Running as root without --no-sandbox") { return "High confidence: application explicitly refused a root session. This is an application safety check; changing the last RET or futex cannot repair it." }
         if output.contains("SUID sandbox helper") || output.contains("setuid_sandbox_host.cc") { return "High confidence: application reported a sandbox-helper configuration failure. Verify guest identity, imported owner/mode and supported isolation; sandbox support is not established by changing permissions alone." }
         if output.contains("string_view::substr") { return "Medium confidence: application reported a C++ string-view bounds failure. Its triggering caller or input still needs investigation." }
+        if output.contains("pthread_create: Resource temporarily unavailable") {
+            let allocationFailed = context.contains { $0.hasPrefix("FAULT_CALL ") && $0.contains("name=mmap ") && $0.contains("result=-12 ") }
+            return allocationFailed
+                ? "Medium confidence: thread creation failed after mmap returned ENOMEM. Stack/backing allocation was refused; physical RAM exhaustion is not established. Inspect MMAP_FAILURE for the failing stage and host memory measurements."
+                : "Medium confidence: application reported a thread-creation resource failure. Check stack allocation and host/guest thread limits; the exhausted resource is not yet established."
+        }
         if output.lowercased().contains("fatal") || output.lowercased().contains("check failed") { return "Medium confidence: an application fatal/assertion message was captured below. The violated check is evidence; its underlying runtime cause is not yet established." }
         if recentResourceFailure { return "Low confidence: recent descriptor exhaustion was observed, but causality is unproven. Check global FD trends and the actual exit requester." }
         return "Unknown: signal/exit status is established, but no causal fatal message was captured. A RET instruction or futex EINTR is not itself the cause of termination."
@@ -247,7 +253,7 @@ import SwiftUI
         // already-filtered diagnostic output enter the persistent report.
         let bounded = String(line.prefix(640))
         queue.async {
-            if bounded.hasPrefix("FD_PRESSURE") || bounded.hasPrefix("FUTEX_ERROR:") || bounded.hasPrefix("POLL_BACKEND_FAILURE:") || bounded.hasPrefix("PROCESS_EVENT ") || bounded.hasPrefix("FD_TREND ") {
+            if bounded.hasPrefix("FD_PRESSURE") || bounded.hasPrefix("FUTEX_ERROR:") || bounded.hasPrefix("POLL_BACKEND_FAILURE:") || bounded.hasPrefix("PROCESS_EVENT ") || bounded.hasPrefix("FD_TREND ") || bounded.hasPrefix("MMAP_FAILURE ") {
                 recent.append(DiagnosticPrivacy.redact(bounded)); recent = Array(recent.suffix(8))
             }
             guard let safe = GuestCrashReport.safeContext(bounded), var report = pending[tid], report.context.count < 160 else { return }

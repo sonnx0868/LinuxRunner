@@ -66,7 +66,8 @@ def main():
              'This IPA has an ad-hoc signature and requires your own signing/provisioning.\n\n'
              f'Source: {document["sourceCommit"]}\n'
              'Includes Debian Chromium launcher compatibility for the zygote exit-127 crash, '
-             'Chromium exec rollback repair, M2 profile, raw keyboard input, '
+             'demand-zero glibc thread stack reservations for the build-1008 mmap/pthread_create failure, '
+             'host memory evidence in crash reports, Chromium exec rollback repair, M2 profile, raw keyboard input, '
              'StikDebug authorization request and in-app update downloads. '
              'The Chromium compatibility flags reduce browser isolation inside the Linux guest. '
              'Chromium startup, performance and LCSign import still require testing on the iPad.')

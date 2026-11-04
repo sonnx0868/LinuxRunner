@@ -161,8 +161,13 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
         // A shared map must retain one backing across fork, including pages
         // that neither process has touched yet. Private maps can materialize
         // zero pages independently and copy touched pages through normal CoW.
+        // glibc thread stacks start as PROT_NONE too: the reported Chromium
+        // failure requested 0x810000 bytes (8 MiB stack + 64 KiB guard). The
+        // old 16 MiB threshold eagerly reserved host VM for every such stack.
+        // Include private inaccessible reservations from 1 MiB, retaining
+        // guest guards and the requested stack size; shared backing stays eager.
         if ((flags & MMAP_PRIVATE) &&
-                (pages >= 0x10000 || (!(prot & P_RWX) && pages >= 0x1000))) {
+                (pages >= 0x10000 || (!(prot & P_RWX) && pages >= 0x100))) {
             if ((flags & MMAP_NORESERVE) && !caller_hint_used) {
                 pages_t align_pages = pages;
                 if (align_pages > 0x40000) align_pages = 0x40000;
@@ -183,8 +188,11 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
             return page << PAGE_BITS;
         }
 #endif
-        if ((err = pt_map_nothing(current->mem, page, pages, prot)) < 0)
+        if ((err = pt_map_nothing(current->mem, page, pages, prot)) < 0) {
+            fd_report_mapping_failure(NULL, -1, "anonymous_backing", page << PAGE_BITS,
+                    len, offset, prot, flags, 0, err);
             return err;
+        }
     } else {
         // fd must be valid
         // Keep the open description stable across concurrent close/dup/exec.

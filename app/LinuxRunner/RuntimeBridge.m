@@ -142,9 +142,23 @@ void LRStartupInitialize(void) {
     LRBootEvent(limits);
 }
 static void LRObserveSyscall(int pid, uint64_t pc, uint64_t sp, unsigned syscall) { LRBootSnapshot(pid, pc, sp, syscall, 0); }
+static void LRFaultContext(const char *line);
 static void LRObserveMemory(const char *operation, uint64_t address, uint64_t length, int protection, int flags, int error) {
-    char message[256]; snprintf(message, sizeof(message), "MEMORY %s address=0x%llx length=%llu prot=%d flags=%d errno=%d", operation, (unsigned long long)address, (unsigned long long)length, protection, flags, error);
-    LRBootEvent(message);
+    int saved = errno;
+    task_vm_info_data_t vm = {0};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t status = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vm, &count);
+    // Numeric resource evidence belongs in the bounded application crash tail,
+    // not only the startup log. An ENOMEM is not proof of physical RAM exhaustion.
+    char message[768];
+    snprintf(message, sizeof(message), "MMAP_FAILURE tid=%d tgid=%d stage=host_memory operation=\"%s\" address=%#llx length=%llu prot=%#x flags=%#x native_errno=%d host_vm_status=%d host_virtual=%llu host_resident=%llu host_footprint=%llu host_available=%llu anon_pages=%ld anon_limit=%ld",
+        current ? current->pid : 0, current ? current->tgid : 0, operation,
+        (unsigned long long)address, (unsigned long long)length, protection, flags, error, status,
+        (unsigned long long)vm.virtual_size, (unsigned long long)vm.resident_size,
+        (unsigned long long)vm.phys_footprint, (unsigned long long)os_proc_available_memory(),
+        atomic_load(&anon_page_count), atomic_load(&anon_page_limit));
+    LRFaultContext(message);
+    errno = saved;
 }
 extern void (*runtime_syscall_observer)(int, uint64_t, uint64_t, unsigned);
 extern void (*runtime_guest_fault)(int, int, const char *, uint64_t, uint64_t, int, uint64_t, uint32_t);
