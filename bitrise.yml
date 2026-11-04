@@ -34,7 +34,7 @@ workflows:
             brew install cmake pkg-config lld ninja libarchive
             python3 -m venv build/ci-venv
             source build/ci-venv/bin/activate
-            python3 -m pip install 'meson==1.8.3' 'Mako==1.3.10'
+            python3 -m pip install 'meson==1.8.3' 'Mako==1.3.10' 'PyYAML==6.0.3'
             export PATH="$PWD/build/ci-venv/bin:$(brew --prefix lld)/bin:$PATH"
             envman add --key PATH --value "$PATH"
             git submodule update --init --recursive --checkout -- deps/libapps deps/libarchive deps/glslang deps/spirv-cross
