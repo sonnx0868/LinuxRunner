@@ -59,7 +59,7 @@
     },
     {
       "name": "desktop-components.sh",
-      "sha256": "7a3044f4983b075e40e54217bb14c937775c2edc38f18e4064f3d505a540c73d",
+      "sha256": "95ea6bab2b62bc816284f0a3b8a8fc62614dd015ce28b95d28567fd6ce53993c",
       "mode": "0755"
     },
     {
@@ -109,7 +109,7 @@
     },
     {
       "name": "desktop-report.sh",
-      "sha256": "9269a09a176f7ff42b2c186f5df9ddfcaeeb64e49953cb9f6eb48171f81611af",
+      "sha256": "3ac99096ee1b3af4bd4eff785b55c123a039c57c7d8e886fa5b702f6d67961af",
       "mode": "0755"
     },
     {
@@ -429,7 +429,7 @@
     },
     {
       "name": "session.sh",
-      "sha256": "52ca5fc387c61136b2ebd9d7d8ff8d2896e07aa5a3e19ba018051c1479847e85",
+      "sha256": "912c5aea06e98b7f2c5fdfa10ef17ade8768c87a6e157d9a289c203760a6cec0",
       "mode": "0755"
     },
     {

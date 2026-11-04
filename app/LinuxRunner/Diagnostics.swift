@@ -12,6 +12,9 @@ struct DiagnosticEvent: Codable {
     var tid: Int?
 }
 enum DiagnosticPrivacy {
+    // Chromium prefixes errors with pid:tid:timestamp, not "ERROR". Match its
+    // source-location envelope; never export arbitrary bracketed app output.
+    private static let chromiumDiagnostic = try! NSRegularExpression(pattern: #"^\[[0-9]+:[0-9]+:[0-9/.,:+-]+:(WARNING|ERROR|FATAL):[A-Za-z0-9_./-]+(:[0-9]+|\([0-9]+\))?\] "#)
     static func redact(_ input: String) -> String {
         // Fail closed for payloads whose meaning cannot be safely inferred.
         if ["JavaScript result=", "bytes_hex=", "BROWSER_TEST:", "key_text=", "Authorization:", "Set-Cookie:", "Cookie:"].contains(where: input.localizedCaseInsensitiveContains) { return "[private payload omitted]" }
@@ -44,9 +47,39 @@ enum DiagnosticPrivacy {
         input.split(separator: "\n", omittingEmptySubsequences: false).map { line in
             let s = String(line)
             let allowed = ["GUI_", "DESKTOP_", "X11_", "FOCUS:", "QT_TEST:", "BROWSER:", "BROWSER_", "CHROMIUM_COMPAT:", "FIREFOX_", "[Parent", "Gtk-WARNING", "WARNING", "ERROR", "FATAL", "Crash Annotation", "Xlib:", "xauth:", "QPainter::", "QWidget::", "QEGLPlatformContext:", "qt.qpa.", "Could not load the Qt platform plugin", "This application failed to start because no Qt platform plugin", "Available platform plugins are:"]
-            return allowed.contains(where: s.hasPrefix) ? redact(s) : "[unstructured application output omitted]"
+            let chromium = chromiumDiagnostic.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil
+            return allowed.contains(where: s.hasPrefix) || chromium ? String(redact(s).prefix(640)) : "[unstructured application output omitted]"
         }.joined(separator: "\n")
     }
+    static func applicationDiagnosticTail(_ input: String, lines: Int) -> String {
+        let exported = applicationExport(input).components(separatedBy: "\n")
+        let diagnostics = exported.filter { !$0.isEmpty && $0 != "[unstructured application output omitted]" }
+        let skipped = exported.count - diagnostics.count
+        let tail = diagnostics.suffix(max(1, min(lines, 120))).joined(separator: "\n")
+        return tail + (skipped > 0 ? "\n[\(skipped) unstructured application lines omitted]" : "")
+    }
+}
+
+enum GuestWaitStatus {
+    static func describe(_ raw: Int) -> String {
+        if raw == 0xffff { return "continued (raw wait status \(raw))" }
+        if raw & 0xff == 0x7f { return "stopped by signal \((raw >> 8) & 255) (raw wait status \(raw))" }
+        let signal = raw & 0x7f
+        if signal != 0 { return "terminated by signal \(signal) (raw wait status \(raw))" }
+        return "exited with status \((raw >> 8) & 255) (raw wait status \(raw))"
+    }
+}
+
+// Independent of crash-report creation: SIGKILL can end the session shell
+// before it prints an error or produces a fatal application snapshot.
+struct RuntimeFailureEvidence {
+    private(set) var records: [String] = []
+    mutating func append(_ input: String, timestamp: String) {
+        guard ["PROCESS_SIGNAL ", "ENGINE_INTERRUPT ", "MMAP_FAILURE "].contains(where: input.hasPrefix) else { return }
+        records.append(timestamp + " " + String(DiagnosticPrivacy.redact(input).prefix(640)))
+        records = Array(records.suffix(128))
+    }
+    var text: String { records.isEmpty ? "No signal/allocation failure evidence captured in this app run." : records.joined(separator: "\n") }
 }
 
 // Crash reports contain structured runtime evidence, never arbitrary application
@@ -63,6 +96,7 @@ struct GuestCrashReport: Codable, Identifiable {
         if signal == 11 || signal == 7 { return "Memory access violation" }
         if signal == 5 { return "Guest trap (BRK/SIGTRAP)" }
         if signal == 6 { return "Guest abort (SIGABRT)" }
+        if signal == 9 { return "Guest killed (SIGKILL)" }
         return "Nonzero guest exit"
     }
     var recentResourceFailure: Bool { context.contains { $0.contains("result=-24 ") || $0.hasSuffix("result=-24") || $0.contains("result=-23 ") || $0.hasSuffix("result=-23") } }
@@ -71,7 +105,7 @@ struct GuestCrashReport: Codable, Identifiable {
         return "\(application) \(action)" + (recentResourceFailure ? "; recent descriptor exhaustion (cause suspected)" : "")
     }
     static func safeContext(_ line: String) -> String? {
-        guard ["FAULT_ID ", "FAULT_MAP ", "FAULT_SYMBOL ", "FAULT_CODE ", "FAULT_REG ", "FAULT_CALL ", "FAULT_PATH ", "FD_SNAPSHOT", "FD_PRESSURE", "FD_LIVE ", "PROCESS_EVENT ", "PROCESS_ROLE ", "MMAP_FAILURE ", "FAULT_STDOUT ", "FAULT_STDERR ", "FD_OWNER ", "FD_ORIGIN ", "FD_TREND ", "FD_CENSUS_LIMIT ", "ENGINE_INTERRUPT ", "FUTEX_ERROR:", "POLL_BACKEND_FAILURE:"].contains(where: line.hasPrefix) else { return nil }
+        guard ["FAULT_ID ", "FAULT_MAP ", "FAULT_SYMBOL ", "FAULT_CODE ", "FAULT_REG ", "FAULT_CALL ", "FAULT_PATH ", "FD_SNAPSHOT", "FD_PRESSURE", "FD_LIVE ", "PROCESS_EVENT ", "PROCESS_SIGNAL ", "PROCESS_ROLE ", "MMAP_FAILURE ", "FAULT_STDOUT ", "FAULT_STDERR ", "FD_OWNER ", "FD_ORIGIN ", "FD_TREND ", "FD_CENSUS_LIMIT ", "ENGINE_INTERRUPT ", "FUTEX_ERROR:", "POLL_BACKEND_FAILURE:"].contains(where: line.hasPrefix) else { return nil }
         return DiagnosticPrivacy.redact(line)
     }
     var probableCause: String {
@@ -79,6 +113,7 @@ struct GuestCrashReport: Codable, Identifiable {
         let runtimeExit = metadata["signal"] == "0" && metadata["exit_code"].map { code in
             context.contains { $0.contains("kind=termination_request") && $0.contains("status_linux=\(code) ") && $0.contains("origin=runtime_call") }
         } == true
+        if context.contains(where: { $0.hasPrefix("ENGINE_INTERRUPT ") && $0.contains("reason=translation_allocation_failure ") }) { return "High confidence: the runtime killed this guest after translated-code allocation failed. Inspect MMAP_FAILURE for host memory measurements; physical RAM exhaustion is not established." }
         if context.contains(where: { $0.hasPrefix("ENGINE_INTERRUPT ") }) || runtimeExit { return "High confidence: the recorded termination originated in the runtime. Inspect the matching exit request or engine interrupt; RET/EINTR does not explain its underlying cause." }
         if output.contains("Running as root without --no-sandbox") { return "High confidence: application explicitly refused a root session. This is an application safety check; changing the last RET or futex cannot repair it." }
         if output.contains("SUID sandbox helper") || output.contains("setuid_sandbox_host.cc") { return "High confidence: application reported a sandbox-helper configuration failure. Verify guest identity, imported owner/mode and supported isolation; sandbox support is not established by changing permissions alone." }
@@ -231,6 +266,7 @@ import SwiftUI
     private static var pending: [Int: GuestCrashReport] = [:]
     private static var memoryOnly: [GuestCrashReport] = []
     private static var recent: [String] = []
+    private static var failureEvidence = RuntimeFailureEvidence()
     private static var lastBanner = Date.distantPast
     @objc static func configure(_ directory: URL) {
         queue.sync { store = try? GuestCrashStore(directory: directory) }
@@ -253,7 +289,10 @@ import SwiftUI
         // already-filtered diagnostic output enter the persistent report.
         let bounded = String(line.prefix(640))
         queue.async {
-            if bounded.hasPrefix("FD_PRESSURE") || bounded.hasPrefix("FUTEX_ERROR:") || bounded.hasPrefix("POLL_BACKEND_FAILURE:") || bounded.hasPrefix("PROCESS_EVENT ") || bounded.hasPrefix("FD_TREND ") || bounded.hasPrefix("MMAP_FAILURE ") {
+            if ["PROCESS_SIGNAL ", "ENGINE_INTERRUPT ", "MMAP_FAILURE "].contains(where: bounded.hasPrefix) {
+                failureEvidence.append(bounded, timestamp: ISO8601DateFormatter().string(from: Date()))
+            }
+            if bounded.hasPrefix("FD_PRESSURE") || bounded.hasPrefix("FUTEX_ERROR:") || bounded.hasPrefix("POLL_BACKEND_FAILURE:") || bounded.hasPrefix("PROCESS_EVENT ") || bounded.hasPrefix("PROCESS_SIGNAL ") || bounded.hasPrefix("ENGINE_INTERRUPT ") || bounded.hasPrefix("FD_TREND ") || bounded.hasPrefix("MMAP_FAILURE ") {
                 recent.append(DiagnosticPrivacy.redact(bounded)); recent = Array(recent.suffix(8))
             }
             guard let safe = GuestCrashReport.safeContext(bounded), var report = pending[tid], report.context.count < 160 else { return }
@@ -281,6 +320,7 @@ import SwiftUI
         }
     }
     @objc static func latestSummary() -> String { queue.sync { (store?.entries() ?? memoryOnly).first?.summary ?? "No guest application failures recorded" } }
+    @objc static func runtimeEvidence() -> String { queue.sync { failureEvidence.text } }
     static func reports() -> [GuestCrashReport] { queue.sync { store?.entries() ?? memoryOnly } }
     static func storageStatus() -> String { queue.sync { guard let store = store else { return "Memory only: persistent crash storage could not be initialized." }; return store.persistenceError ?? "Latest 20 reports retained privately across restarts." } }
     static func export(_ report: GuestCrashReport) throws -> URL {
@@ -368,6 +408,8 @@ import SwiftUI
         queue.sync { (store?.read() ?? []).map { ["timestamp": $0.timestamp.timeIntervalSince1970, "level": $0.level.label, "category": $0.category, "message": $0.message, "pid": $0.pid ?? 0, "tid": $0.tid ?? 0] } }
     }
     @objc static func crashOutput(_ text: String) -> String { DiagnosticPrivacy.crashOutput(text) }
+    @objc static func applicationDiagnosticTail(_ text: String, lines: Int) -> String { DiagnosticPrivacy.applicationDiagnosticTail(text, lines: lines) }
+    @objc static func describeWaitStatus(_ raw: Int) -> String { GuestWaitStatus.describe(raw) }
     @objc static func redact(_ text: String, application: Bool) -> String { application ? DiagnosticPrivacy.applicationExport(text) : (text.contains("-----BEGIN") ? "[key material omitted]" : text.components(separatedBy: "\n").map(DiagnosticPrivacy.redact).joined(separator: "\n")) }
     @objc static func flush() { queue.sync {} }
 }

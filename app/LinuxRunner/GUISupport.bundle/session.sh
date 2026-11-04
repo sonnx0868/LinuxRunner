@@ -221,8 +221,8 @@ fi
 export XAUTHORITY="$session/authority"
 umask 077
 xauth -f "$XAUTHORITY" add "$DISPLAY" . "$(cat "$session/cookie")"
-echo "GUI_SESSION: root=${LINUXRUNNER_ENVIRONMENT:-current} distribution=$distro DISPLAY=$DISPLAY geometry=${width}x${height} backend=xvfb-rfb interpreter-baseline"
-echo "GUI_SESSION: starting X.Org software display, ${width}x${height}, no JIT"
+echo "GUI_SESSION: root=${LINUXRUNNER_ENVIRONMENT:-current} distribution=$distro DISPLAY=$DISPLAY geometry=${width}x${height} backend=xvfb-rfb execution=see-native-backend-status"
+echo "GUI_SESSION: starting X.Org software display, ${width}x${height}"
 Xvfb "$DISPLAY" -screen 0 "${width}x${height}x24" -nolisten tcp -auth "$XAUTHORITY" "$shm_switch" MIT-SHM "$glx_switch" GLX > "$session/xvfb.log" 2>&1 & xpid=$!
 i=0
 while [ ! -S "/tmp/.X11-unix/X$display" ]; do

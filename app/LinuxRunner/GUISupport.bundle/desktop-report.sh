@@ -15,8 +15,12 @@ for p in /proc/[0-9]*; do
     esac
     state=$(sed -n 's/^State:[[:space:]]*//p' "$p/status" 2>/dev/null)
     uid=$(sed -n 's/^Uid:[[:space:]]*\([0-9]*\).*/\1/p' "$p/status" 2>/dev/null)
+    tgid=$(sed -n 's/^Tgid:[[:space:]]*//p' "$p/status" 2>/dev/null)
     ppid=$(sed -n 's/^PPid:[[:space:]]*//p' "$p/status" 2>/dev/null)
-    echo "${p#/proc/} ppid=$ppid uid=$uid state=$state $cmd"
+    # /proc may expose worker TIDs too. Show their TGID and the actual
+    # process group/session so threads do not look like duplicate servers.
+    groups=$(sed 's/.*) //' "$p/stat" 2>/dev/null | awk '{print "pgid=" $3 " sid=" $4}')
+    echo "${p#/proc/} tgid=$tgid ppid=$ppid uid=$uid $groups state=$state $cmd"
 done
 echo "== debian first start"
 if [ -e /usr/lib/linuxrunner/initialize-debian.sh ]; then

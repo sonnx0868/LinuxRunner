@@ -67,9 +67,13 @@ def main():
              f'Source: {document["sourceCommit"]}\n'
              'Includes Debian Chromium launcher compatibility for the zygote exit-127 crash, '
              'demand-zero glibc thread stack reservations for the build-1008 mmap/pthread_create failure, '
+             'Chromium error preservation and sender/target signal evidence for the build-1009 desktop exit, '
              'host memory evidence in crash reports, Chromium exec rollback repair, M2 profile, raw keyboard input, '
              'StikDebug authorization request and in-app update downloads. '
              'The Chromium compatibility flags reduce browser isolation inside the Linux guest. '
+             'Build 1009 rendered Plasma but the desktop exited with shell status 137 after Chromium was opened; '
+             'the supplied report did not establish the killing process or physical memory exhaustion. '
+             'This build improves diagnosis and does not claim that remaining Chromium failure is fixed. '
              'Chromium startup, performance and LCSign import still require testing on the iPad.')
     release = request(f'{api}/releases', 'POST', json.dumps(dict(
         tag_name=tag, target_commitish=document['sourceCommit'],

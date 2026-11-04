@@ -157,6 +157,7 @@ void send_signal(struct task *task, int sig, struct siginfo_ info) {
         return;
     if (task->zombie || task->exiting)
         return;
+    runtime_signal_event(task, sig, &info);
 #ifdef GUEST_ARM64
     extern volatile bool g_trace_faults;
     if (g_trace_faults &&

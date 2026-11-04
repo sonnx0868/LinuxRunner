@@ -868,7 +868,8 @@ static NSString *DesktopDegradedNotice(NSString *state);
     __weak typeof(self) weak=self;
     _exitObserver=[NSNotificationCenter.defaultCenter addObserverForName:@"ProcessExitedNotification" object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n){typeof(self) self=weak;if(self&&self.sessionTerminal.sessionPid>0&&[n.userInfo[@"pid"] intValue]==self.sessionTerminal.sessionPid){BOOL starting=self.startState==LRStartSession;[self stop];NSString *detail=[NSString stringWithContentsOfURL:[self.sessionURL URLByAppendingPathComponent:@"session.log"] encoding:NSUTF8StringEncoding error:nil];
         NSString *last=@"GUI session exited";for(NSString *line in [detail componentsSeparatedByString:@"\n"])if([line hasPrefix:@"GUI_SESSION:"]&&![line containsString:@"cleaned up"])last=line;
-        if(self.desktopMode){[self traceSessionLog:detail];[LRRuntimeBridge desktopTrace:@"09 desktop" result:@"fail" detail:[NSString stringWithFormat:@"session process exited code=%@ while start-state=%ld painted=%d last=%@",n.userInfo[@"code"],(long)self.startState,self.desktopPainted,last]];}
+        NSString *termination=[LRDiagnosticCenter describeWaitStatus:[n.userInfo[@"code"] integerValue]];
+        if(self.desktopMode){[self traceSessionLog:detail];[LRRuntimeBridge desktopTrace:@"09 desktop" result:@"fail" detail:[NSString stringWithFormat:@"session process %@ while start-state=%ld painted=%d last=%@",termination,(long)self.startState,self.desktopPainted,last]];}
         self.status.text=ApplicationPreflightFailure(self.sessionURL)?:[NSString stringWithFormat:@"%@. CLI remains available. GUI Logs includes application stdout/stderr.",last];
         if(self.desktopMode){
             // Missing components reported by session.sh: check again and repair (once per request).
@@ -879,12 +880,13 @@ static NSString *DesktopDegradedNotice(NSString *state);
                 // Name the desktop component that ended and its last error line.
                 NSString *app=[NSString stringWithContentsOfURL:[self.sessionURL URLByAppendingPathComponent:@"application.log"] encoding:NSUTF8StringEncoding error:nil],*component=nil;
                 for(NSString *line in [app componentsSeparatedByString:@"\n"])if([line containsString:@"component_exited"])component=line;
-                NSString *cause=last;
+                NSString *cause=[NSString stringWithFormat:@"%@\n%@",termination,last];
                 if(component){cause=component;NSRange n=[component rangeOfString:@"("];NSRange e=[component rangeOfString:@")"];
                     if(n.location!=NSNotFound&&e.location!=NSNotFound&&e.location>n.location){NSString *logName=[component substringWithRange:NSMakeRange(n.location+1,e.location-n.location-1)];
                         NSString *componentLog=[NSString stringWithContentsOfURL:[self.sessionURL URLByAppendingPathComponent:logName] encoding:NSUTF8StringEncoding error:nil];NSString *errorLine=nil;
                         for(NSString *line in [componentLog componentsSeparatedByString:@"\n"])if([line containsString:@"ERROR"]||[line containsString:@"Bail out"]||[line containsString:@"rror:"])errorLine=line;
                         if(errorLine)cause=[NSString stringWithFormat:@"%@\n%@",component,[errorLine substringToIndex:MIN(errorLine.length,(NSUInteger)300)]];}}
+                if(component)cause=[NSString stringWithFormat:@"%@\n%@",termination,cause];
                 [self desktopStartFailed:@"The desktop stopped" detail:[NSString stringWithFormat:@"%@\n\nError: DESKTOP_STARTUP_ERROR. Tap Retry to start it again, or Details for the logs.",cause]];
             }
         }}}];
@@ -1100,6 +1102,7 @@ static NSString *LRTail(NSURL *url,NSUInteger lines){
     NSDictionary *info=NSBundle.mainBundle.infoDictionary;
     [text appendFormat:@"LinuxRunner Open Desktop report\napp %@ (%@) source %@\niOS %@ %@\nattempt %@ created %@\n",info[@"CFBundleShortVersionString"],info[@"CFBundleVersion"],info[@"LinuxRunnerSourceCommit"]?:@"unknown",UIDevice.currentDevice.systemVersion,UIDevice.currentDevice.model,LRRuntimeBridge.desktopTraceAttempt,[[NSISO8601DateFormatter new] stringFromDate:NSDate.date]];
     [text appendFormat:@"runtime: running=%d status=%@\nenvironment: %@ debian=%d user=%@ graphics=%@\n",LRRuntimeBridge.isRunning,LRRuntimeBridge.runtimeStatus,LRRuntimeBridge.activeRootName,LRRuntimeBridge.activeEnvironmentIsDebian,LRRuntimeBridge.defaultLinuxUser,LRSessionGraphicsMode()];
+    [text appendFormat:@"execution backend: %@\nJIT observation: %@\n",LRRuntimeBridge.executionBackendStatus,LRRuntimeBridge.jitStatusReport];
     NSUserDefaults *defaults=NSUserDefaults.standardUserDefaults;
     [text appendFormat:@"screen awake: idle_timer_disabled=%d setting=%d reasons=%@ installation_running=%d\n",UIApplication.sharedApplication.idleTimerDisabled,
         [defaults objectForKey:@"LinuxRunner.keepScreenAwake"]?[defaults boolForKey:@"LinuxRunner.keepScreenAwake"]:YES,[LRRuntimeBridge.awakeReasons componentsJoinedByString:@","]?:@"",LRRuntimeBridge.installationRunning];
@@ -1125,11 +1128,16 @@ static NSString *LRTail(NSURL *url,NSUInteger lines){
     NSURL *support=[[LRRuntimeBridge exchangeURL:LRRuntimeBridge.activeRootName] URLByAppendingPathComponent:LRGUIFolder isDirectory:YES];
     NSURL *session=controller.sessionURL;
     void (^finish)(NSString *)=^(NSString *guest){
+        [text appendFormat:@"\n== runtime signal/allocation evidence (this app run, latest 128)\n%@\n",[LRGuestCrashCenter runtimeEvidence]];
         [text appendFormat:@"\n== guest state\n%@\n",guest?:@"(not collected)"];
         for(NSString *name in @[@"profile-check.result",@"install-result"]){NSString *t=LRTail([support URLByAppendingPathComponent:name],10);if(t)[text appendFormat:@"\n== %@\n%@\n",name,t];}
         NSString *profile=LRTail([support URLByAppendingPathComponent:@"desktop-profile.sh.log"],40);if(profile)[text appendFormat:@"\n== desktop-profile.sh.log (last 40 lines)\n%@\n",profile];
         if(session)for(NSString *name in @[@"desktop-state",@"session.log",@"application.log",@"xvfb.log",@"display.log",@"wm.log",@"panel.log",@"desktop.log",@"plasma.log"]){
-            NSString *t=LRTail([session URLByAppendingPathComponent:name],name.length>12?25:40);if([name isEqual:@"plasma.log"])t=[LRRuntimeBridge redactDiagnosticText:t?:@"" application:YES];if(t.length)[text appendFormat:@"\n== %@ (tail)\n%@\n",name,t];}
+            NSURL *logURL=[session URLByAppendingPathComponent:name];
+            // Filter the bounded byte tail before counting lines: ordinary Qt
+            // chatter must not push the real Chromium fatal out of the report.
+            NSString *t=[name isEqual:@"plasma.log"]?[LRDiagnosticCenter applicationDiagnosticTail:LRDiagnosticTailString(LRReadDiagnosticTail(logURL,128*1024))?:@"" lines:80]:LRTail(logURL,name.length>12?25:40);
+            if(t.length)[text appendFormat:@"\n== %@ (tail)\n%@\n",name,t];}
         NSString *saved=LRRuntimeBridge.desktopTraceSavedText;NSArray *savedLines=[saved componentsSeparatedByString:@"\n"];
         [text appendFormat:@"\n== earlier attempts (saved timeline, last 150 records)\n%@\n",[[savedLines subarrayWithRange:NSMakeRange(savedLines.count>150?savedLines.count-150:0,MIN(savedLines.count,(NSUInteger)150))] componentsJoinedByString:@"\n"]];
         completion([LRRuntimeBridge redactDiagnosticText:text application:NO]);

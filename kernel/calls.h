@@ -18,6 +18,7 @@ void handle_interrupt(int interrupt);
 void runtime_capture_output(int fd, const void *buffer, size_t size);
 void runtime_record_exit(unsigned syscall, unsigned status);
 void runtime_process_event(const char *kind, int subject, int status);
+void runtime_signal_event(struct task *target, int signal, const struct siginfo_ *info);
 void runtime_output_exec_reset(void);
 void runtime_record_mapping_failure(const char *line);
 int ipc_trace_dump(char *status, size_t size);

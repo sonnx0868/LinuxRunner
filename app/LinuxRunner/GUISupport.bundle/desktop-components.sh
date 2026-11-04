@@ -390,7 +390,11 @@ supervise() {
  # Desktops that are one process tree end with it; Hyprland's display bridge
  # alone is restarted (a few times) while Hyprland runs.
  case "$environment" in plasma|lxqt|enlightenment|wayfire|hyprland)
-  kill -0 "$wm" 2>/dev/null || { echo "$1: component_exited name=$(component_name "$wm") pid=$wm"; exit 1; }
+  if ! kill -0 "$wm" 2>/dev/null; then
+   status=0; wait "$wm" 2>/dev/null || status=$?
+   echo "$1: component_exited name=$(component_name "$wm") pid=$wm status=$status"
+   exit 1
+  fi
   if [ "$environment" = hyprland ] && [ -n "$panel" ] && ! kill -0 "$panel" 2>/dev/null; then
    bridge_restarts=$((${bridge_restarts:-0} + 1))
    if [ "$bridge_restarts" -gt 5 ]; then echo "$1: component_failed name=$(component_name "$panel")"; panel=; failed="panel"; write_degraded

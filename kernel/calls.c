@@ -148,6 +148,20 @@ struct process_event { int tgid, subject, parent; char line[384]; };
 static struct process_event process_events[64];
 static unsigned process_sequence;
 static lock_t process_event_lock=LOCK_INITIALIZER;
+// send_signal may run with pids_lock held. Record only stable numeric fields;
+// do not look up tasks, acquire pids_lock, or read the sender's guest memory.
+void runtime_signal_event(struct task *target, int signal, const struct siginfo_ *info) {
+    if (!runtime_fault_context || (signal != SIGKILL_ && signal != SIGTERM_ && signal != SIGHUP_)) return;
+    struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
+    struct process_event event = {.tgid=current ? current->tgid : 0, .subject=target->tgid};
+    snprintf(event.line, sizeof event.line,
+        "PROCESS_SIGNAL tid=%d tgid=%d target_tid=%d target_tgid=%d signal=%d code=%d sender_pid=%d mono_ms=%llu",
+        current ? current->pid : 0, event.tgid, target->pid, target->tgid, signal,
+        info->code, info->code == SI_USER_ || info->code == SI_TKILL_ ? info->kill.pid : 0,
+        (unsigned long long)now.tv_sec * 1000 + now.tv_nsec / 1000000);
+    lock(&process_event_lock); process_events[process_sequence++ % 64] = event; unlock(&process_event_lock);
+    fault_context("%s", event.line);
+}
 void runtime_process_event(const char *kind,int subject,int status) {
     struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
     struct process_event event={.tgid=current->tgid,.subject=subject};
@@ -768,6 +782,14 @@ void handle_interrupt(int interrupt) {
         // Do not disguise host allocation failure as a guest page fault: a
         // mapped code page would otherwise be retried forever. Kill only the
         // affected guest process group, as for a host OOM victim.
+        fault_context("ENGINE_INTERRUPT tid=%d tgid=%d interrupt=%d reason=translation_allocation_failure termination_signal=%d pc=%#llx",
+                current->pid, current->tgid, interrupt, SIGKILL_, (unsigned long long)cpu->pc);
+        if (runtime_memory_failure)
+            runtime_memory_failure("translation allocation", 0, 0, 0, 0, ENOMEM);
+#ifdef GUEST_ARM64
+        runtime_report_guest_fault(SIGKILL_, 0, 0);
+        if (runtime_guest_terminated) runtime_guest_terminated(current->pid, SIGKILL_, -1);
+#endif
         do_exit_group(SIGKILL_);
     } else if (interrupt == INT_GPF) {
         struct timespec fault_begin, fault_end;

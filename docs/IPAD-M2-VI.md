@@ -94,6 +94,18 @@ Launcher dùng `--no-sandbox --no-zygote` vì sandbox Linux của Chromium chưa
 
 ### Về crash Chromium trong log bạn gửi
 
+Log Open Desktop **1009**: Plasma đã sẵn sàng và truyền 306 khung hình;
+sau thao tác mở Chromium, phiên desktop thoát với wait status `35072`,
+tức **shell exit 137**. Không phải mã lỗi Chromium 35072. Chưa có bằng chứng
+để quy lỗi cho RAM vật lý hoặc xác định ai gửi SIGKILL.
+
+Bản source tiếp theo giữ lỗi Chromium có tiền tố `[pid:tid:…:ERROR/FATAL:…]`
+trong báo cáo, lọc trước khi lấy 80 dòng chẩn đoán cuối, ghi sender/target
+của SIGKILL/SIGTERM/SIGHUP và lỗi cấp phát của bộ dịch mã. Báo cáo cũng kèm
+trạng thái backend/JIT thực tế, TGID/PGID/SID để phân biệt thread và process,
+và exit status của Plasma. Đây là bổ sung chẩn đoán; chưa khẳng định sửa xong
+lỗi Chromium làm desktop dừng. Kiểm tra native macOS nằm trong workflow build.
+
 **Bản mới nhất là IPA 1009**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1009).
 Mở **Settings → App Updates → Check Now**, tải rồi chuyển sang LCSign ký/cài
 với cùng bundle ID. Đóng và mở lại app/desktop; kiểm tra Installed hiển thị 1009.
