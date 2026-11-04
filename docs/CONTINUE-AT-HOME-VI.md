@@ -2,6 +2,26 @@
 
 ## Cách đơn giản: mở chat mới từ source GitHub
 
+### Điều tra mới từ log 1009 (4/11/2026)
+
+- Người dùng xác nhận: bấm mở Chromium thì cả desktop tắt.
+- Open Desktop report cho thấy Plasma ready và 306 frame; phiên shell thoát
+  wait status `35072` = exit 137. Chưa biết nguồn SIGKILL hoặc giới hạn bộ nhớ.
+- Các lỗi Chromium dạng `[pid:tid:timestamp:ERROR/FATAL:source]` bị bộ lọc
+  export cũ bỏ mất. Log này không đủ chứng minh sửa stack 1009 thất bại.
+- Commit `b46a835` giữ lỗi Chromium trong byte tail 128 KiB trước khi chọn 80
+  dòng chẩn đoán, giải mã wait status, ghi sender/target signal, lỗi cấp phát
+  translator và số đo host; bổ sung TGID/PGID/SID, trạng thái JIT thực tế,
+  status của Plasma child. Chưa sửa nguyên nhân Chromium còn lại.
+- Bitrise #10 đang build source này, dự kiến IPA 1010:
+  https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/11b6441e-2f26-4dbf-a574-8af96f6ada18
+- Bước kiểm tra #10 đã PASS thực tế: DiagnosticsTests (Chromium, wait status,
+  evidence ring), Plasma child SIGKILL → 137, actual-kernel signal tracing
+  dưới pids_lock (sender/target, đúng process group, bỏ probe/ESRCH/EPERM),
+  exec rollback, 48 stack dưới host mmap injection, native RFB tests.
+- Phải đợi archive/audit/deploy hoàn tất, tải và kiểm tra IPA rồi publish;
+  chưa gọi 1010 đã phát hành chỉ vì các bài kiểm tra đã qua.
+
 Clone đúng branch bên dưới, mở thư mục trong Codex rồi gửi:
 
 > Đọc docs/CONTINUE-AT-HOME-VI.md rồi tiếp tục LinuxRunner cho iPad Pro M2
