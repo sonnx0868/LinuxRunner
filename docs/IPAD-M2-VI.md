@@ -134,7 +134,7 @@ python3 scripts/generate-gui-support-manifest.py --check
 
 Bitrise chạy các kiểm tra trước khi build IPA. Kiểm tra lỗi host `mmap` trả `ENOMEM` sau khi nạp một phần ELF lặp 32 lần, kiểm tra robust futex list còn nguyên và chạy `exec` tiếp theo. Fixture nhỏ dùng một lần, không cần tải Debian.
 
-Kiểm tra C độc lập đã qua trên Windows. Bitrise build #6 đã qua kiểm tra runtime/RFB trên macOS ARM64, biên dịch Metal và tạo/kiểm tra IPA; bước đăng artifact của build đó gặp lỗi do không có provisioning profile Apple. Cấu hình mới đóng gói artifact thành ZIP để tải về rồi ký bằng LCSign. Độ mượt và khả năng mở Chromium vẫn cần kiểm tra trên iPad; chưa có số đo tăng tốc trên máy thật.
+Kiểm tra C độc lập đã qua trên Windows. [Bitrise build #7](https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/69de74f7-8015-4f15-9e6c-dbc7bc4e64ce) đã thành công toàn bộ: kiểm tra runtime/RFB trên macOS ARM64, kiểm tra updater, biên dịch Metal/Xcode, kiểm tra IPA và đăng artifact ZIP. IPA build **1007**, source `231c8970644abea0d4c8a226c63f863f63d28749`, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1007). Đã tải thử manifest và IPA công khai, đối chiếu SHA-256 với artifact Bitrise. Độ mượt, JIT, chuyển file sang LCSign và khả năng mở Chromium vẫn cần kiểm tra trên iPad; chưa có số đo tăng tốc trên máy thật.
 
 ## 7. Tự tải bản cập nhật và chuyển sang LCSign
 
