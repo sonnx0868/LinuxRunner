@@ -94,6 +94,11 @@ Launcher dùng `--no-sandbox --no-zygote` vì sandbox Linux của Chromium chưa
 
 ### Về crash Chromium trong log bạn gửi
 
+**Bản chứa sửa zygote là IPA 1008**, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008).
+Trong LinuxRunner mở **Settings → App Updates → Check Now**, tải rồi chuyển
+sang LCSign ký/cài với cùng bundle ID. Đóng và mở lại app/desktop sau cập nhật.
+Kiểm tra dòng Installed trong App Updates hiển thị build 1008.
+
 Log build **1007** mới đã đi qua bước nạp Chromium, rồi `SIGTRAP` tại
 `zygote_host_impl_linux.cc:228`: **Zygote process exited prematurely with exit code 127**.
 Điều này xác nhận lỗi hiện tại ở đường khởi tạo zygote/sandbox; log chưa chỉ ra
@@ -159,6 +164,13 @@ python3 scripts/generate-gui-support-manifest.py --check
 Bitrise chạy các kiểm tra trước khi build IPA. Kiểm tra lỗi host `mmap` trả `ENOMEM` sau khi nạp một phần ELF lặp 32 lần, kiểm tra robust futex list còn nguyên và chạy `exec` tiếp theo. Fixture nhỏ dùng một lần, không cần tải Debian.
 
 Kiểm tra C độc lập đã qua trên Windows. [Bitrise build #7](https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/69de74f7-8015-4f15-9e6c-dbc7bc4e64ce) đã thành công toàn bộ: kiểm tra runtime/RFB trên macOS ARM64, kiểm tra updater, biên dịch Metal/Xcode, kiểm tra IPA và đăng artifact ZIP. IPA build **1007**, source `231c8970644abea0d4c8a226c63f863f63d28749`, đã [phát hành trên GitHub](https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1007). Đã tải thử manifest và IPA công khai, đối chiếu SHA-256 với artifact Bitrise. Độ mượt, JIT, chuyển file sang LCSign và khả năng mở Chromium vẫn cần kiểm tra trên iPad; chưa có số đo tăng tốc trên máy thật.
+
+[Bitrise build #8](https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/98ecbb68-b1d6-4f98-82d5-7df25ae2d946)
+đã thành công toàn bộ cho sửa Chromium, tạo IPA **1008**, source
+`bab56ca131f786379c3fe537a47455ef2af7887c`. Đã đối chiếu 95 tài nguyên trong
+IPA với source và tải thử manifest/IPA/checksum công khai từ release.
+SHA-256: `b0028a4d5648babc1ce9cb67a8e8fa42db5e72da6be042a6484c40dd89b9a586`.
+Khả năng mở Chromium thật vẫn cần người dùng thử trên iPad.
 
 ## 7. Tự tải bản cập nhật và chuyển sang LCSign
 

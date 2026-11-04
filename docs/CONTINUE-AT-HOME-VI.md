@@ -6,9 +6,9 @@ Clone đúng branch bên dưới, mở thư mục trong Codex rồi gửi:
 
 > Đọc docs/CONTINUE-AT-HOME-VI.md rồi tiếp tục LinuxRunner cho iPad Pro M2
 > 16 GB, iPadOS 27, Debian 13 aarch64. Ưu tiên tốc độ và độ mượt. Bản sửa
-> Chromium mới đã commit nhưng chưa build IPA; kiểm tra rồi build m2-jit
-> trên Bitrise và phát hành bản mới. Không coi Chromium đã chạy được khi
-> chưa có xác nhận từ iPad.
+> Chromium đã build và phát hành IPA 1008. Tiếp tục dựa trên kết quả thử
+> bản 1008 trên iPad; không coi Chromium đã chạy được khi chưa có xác nhận
+> từ thiết bị.
 
 Source và ghi chú đủ để tiếp tục công việc; cách này không sao chép toàn bộ
 lịch sử chat. GitHub và Bitrise ở máy nhà cần đăng nhập tài khoản của bạn.
@@ -17,15 +17,23 @@ lịch sử chat. GitHub và Bitrise ở máy nhà cần đăng nhập tài kho�
 
 - Commit sửa Chromium: `225e46b` (đã đẩy lên branch bên dưới).
 - Kiểm tra shell trên Windows và manifest 95 resources đã qua.
-- Chưa chạy Bitrise cho commit sửa Chromium. Không có build #8 được khởi tạo.
-- Build #7 / IPA 1007 đang có trên Bitrise và GitHub là bản trước sửa zygote.
-- Việc tiếp theo: build source mới, kiểm tra test macOS, tải IPA và phát hành.
-- Tài liệu này được lưu ở commit kế tiếp commit sửa Chromium.
+- Bitrise build #8 đã thành công toàn bộ; IPA 1008 có source
+  `bab56ca131f786379c3fe537a47455ef2af7887c`.
+- Build: https://app.bitrise.io/app/1cb085dc-5a2d-441e-947e-28ceebae9cd4/build/98ecbb68-b1d6-4f98-82d5-7df25ae2d946
+- Release: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008
+- IPA: https://github.com/sonnx0868/LinuxRunner/releases/download/m2-build-1008/LinuxRunner-M2-YES.ipa
+- SHA-256: `b0028a4d5648babc1ce9cb67a8e8fa42db5e72da6be042a6484c40dd89b9a586`.
+- Đã tải IPA công khai không đăng nhập, đối chiếu hash với artifact Bitrise;
+  kiểm tra 95 tài nguyên trong IPA khớp source, có config Chromium mới.
+- Build #7 / IPA 1007 là bản trước sửa zygote.
+- Việc tiếp theo: cài 1008, mở desktop mới và thử Chromium trên iPad.
+  Nếu vẫn crash, cần log mới của 1008 để xác định lỗi còn lại.
 
 ## Source
 
 - Repo: https://github.com/sonnx0868/LinuxRunner
 - Branch: `codex/ipad-m2-performance`
+- Bản hiện tại: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1008
 - Bản đã phát hành trước sửa zygote: https://github.com/sonnx0868/LinuxRunner/releases/tag/m2-build-1007
 - Người dùng: iPad Pro M2, 16 GB RAM, iPadOS 27; Debian 13 aarch64, user thường có sudo.
 - Ưu tiên tốc độ dịch mã và độ trễ khung hình. Chưa đo tốc độ thực tế trên iPad.
