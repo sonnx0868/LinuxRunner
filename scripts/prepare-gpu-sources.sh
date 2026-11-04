@@ -25,11 +25,20 @@ cd "$GPU_DEPS/angle"
 python3 scripts/bootstrap.py
 # This app uses ANGLE's Metal backend. OpenCL and WebGPU checkouts pull in
 # LLVM source and Dawn that are not needed by that backend.
-cat >> .gclient <<'GCLIENT'
-solutions[0].setdefault('custom_vars', {}).update({
+python3 - <<'GCLIENT'
+import ast, pathlib, pprint
+path = pathlib.Path('.gclient')
+config = {}
+for node in ast.parse(path.read_text()).body:
+    if not isinstance(node, ast.Assign) or len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+        raise SystemExit('Unexpected generated .gclient configuration')
+    config[node.targets[0].id] = ast.literal_eval(node.value)
+config['solutions'][0].setdefault('custom_vars', {}).update({
     'checkout_angle_cl_deps': False,
     'checkout_angle_dawn_deps': False,
 })
+# gclient accepts literal assignments, not method calls, in this file.
+path.write_text(''.join(f'{name} = {pprint.pformat(value)}\n' for name, value in config.items()))
 GCLIENT
 # Bitrise starts from a clean VM. The full LLVM/CTS/SwiftShader histories
 # are large; the build only needs the revisions pinned by ANGLE's DEPS.
