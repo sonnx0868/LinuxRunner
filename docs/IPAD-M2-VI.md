@@ -134,4 +134,28 @@ python3 scripts/generate-gui-support-manifest.py --check
 
 Bitrise chạy các kiểm tra trước khi build IPA. Kiểm tra lỗi host `mmap` trả `ENOMEM` sau khi nạp một phần ELF lặp 32 lần, kiểm tra robust futex list còn nguyên và chạy `exec` tiếp theo. Fixture nhỏ dùng một lần, không cần tải Debian.
 
-Kiểm tra C độc lập đã qua trên Windows. Phần Objective-C/Swift, runtime macOS, IPA và độ mượt trên iPad cần kết quả Bitrise/máy thật; chưa có số đo tăng tốc hoặc IPA được xác nhận từ máy Windows này.
+Kiểm tra C độc lập đã qua trên Windows. Bitrise build #6 đã qua kiểm tra runtime/RFB trên macOS ARM64, biên dịch Metal và tạo/kiểm tra IPA; bước đăng artifact của build đó gặp lỗi do không có provisioning profile Apple. Cấu hình mới đóng gói artifact thành ZIP để tải về rồi ký bằng LCSign. Độ mượt và khả năng mở Chromium vẫn cần kiểm tra trên iPad; chưa có số đo tăng tốc trên máy thật.
+
+## 7. Tự tải bản cập nhật và chuyển sang LCSign
+
+Trong bản M2 mới: **Settings → App Updates**.
+
+- Mặc định tự kiểm tra khi mở app/quay lại app, cách nhau ít nhất 6 giờ trong cùng lần chạy. Có thể dùng **Check Now** để kiểm tra ngay.
+- Chỉ lấy bản phát hành công khai ở `sonnx0868/LinuxRunner`, đúng nhánh JIT hoặc interpreter. Không tự thay bằng bản upstream.
+- App so sánh số build, tải IPA về bộ nhớ đệm, kiểm tra dung lượng và SHA-256 trước khi đưa sang công cụ ký. Giữ app ở foreground trong lúc tải; có thể hủy và tải lại.
+- Khi tải xong, app mở **Open In**. Chọn **LCSign**, sau đó ký/cài trong LCSign. File tải xong có thể gửi lại qua **Send IPA to LCSign**.
+- Dùng cùng bundle ID và cấu hình ký đang dùng để cập nhật bản đã cài. Đổi danh tính app có thể tạo một app riêng với vùng dữ liệu khác.
+
+Đã kiểm tra tĩnh bản [LCSign 1.0 build 6](https://github.com/qbap/ONEJailbreak/blob/main/LCSign-1.0-6.ipa): bundle ID `com.huami.LoadController`, đăng ký nhận file IPA và scheme `loadcontroller`. Chưa xác minh được giao thức deep link nhận IPA từ app khác. Vì vậy dùng cơ chế chuyển tài liệu của iPadOS; vẫn cần một lần chọn LCSign. App không thể tự ký/cài bằng chứng chỉ của LCSign hoặc âm thầm vượt bước chọn của iPadOS. Chuyển file trên iPad cần được kiểm tra bằng bản cài thật.
+
+### Phát hành bản mới cho updater
+
+Bitrise tạo `update-m2-jit.json` hoặc `update-m2-interpreter.json` từ chính IPA đã kiểm tra. Build number trên Bitrise là `1000 + BITRISE_BUILD_NUMBER`. ZIP artifact có IPA, SHA-256, manifest và log.
+
+Sau khi tải và giải nén artifact, đăng IPA cùng manifest bằng tài khoản đã lưu trong Git:
+
+```bash
+python3 scripts/publish-update.py build/releases/LinuxRunner-M2-YES.ipa --git-credential
+```
+
+Script tạo draft, tải đủ IPA/manifest/checksum lên rồi mới công khai release. Trong CI có thể dùng biến bí mật `GITHUB_RELEASE_TOKEN` thay cho `--git-credential`; cần tự cấp quyền phát hành cho repo. Token không được nhúng vào app. Build Bitrise đơn thuần chưa tự tạo GitHub Release nếu chưa cấu hình quyền này.
