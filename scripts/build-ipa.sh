@@ -46,6 +46,16 @@ if [[ $diagnostic == YES ]]; then args+=(CODE_SIGN_ENTITLEMENTS=app/LinuxRunner/
 # (needs scripts/build-gpu-deps.sh iphoneos first). Both stay off until enabled in Settings.
 if [[ ${LINUXRUNNER_JIT:-NO} == YES ]]; then args+=(LINUXRUNNER_JIT=YES); fi
 if [[ ${LINUXRUNNER_M2_PROFILE:-NO} == YES ]]; then args+=(LINUXRUNNER_M2_PROFILE=YES); fi
+if [[ ${LINUXRUNNER_M2_PROFILE:-NO} == YES && $diagnostic == NO ]]; then
+    update_channel=m2-interpreter
+    if [[ ${LINUXRUNNER_JIT:-NO} == YES ]]; then update_channel=m2-jit; fi
+    args+=("LINUXRUNNER_UPDATE_CHANNEL=$update_channel")
+fi
+# Monotonically increasing builds keep the updater from offering the same IPA.
+if [[ -n ${BITRISE_BUILD_NUMBER:-} ]]; then
+    [[ $BITRISE_BUILD_NUMBER =~ ^[0-9]+$ ]] || { echo 'Invalid Bitrise build number' >&2; exit 1; }
+    args+=("CURRENT_PROJECT_VERSION=$((1000 + BITRISE_BUILD_NUMBER))")
+fi
 if [[ ${LINUXRUNNER_VIRGL:-NO} == YES ]]; then
     test -f build/gpu/iphoneos/lib/libangle.a || { echo "GPU dependencies missing: run scripts/build-gpu-deps.sh iphoneos" >&2; exit 1; }
     args+=(LINUXRUNNER_VIRGL=YES)

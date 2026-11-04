@@ -345,6 +345,8 @@
 		BBFB55662158644C00DFE6DE /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = BBFB55652158644C00DFE6DE /* libresolv.tbd */; };
 		1A1100000000000000000001 /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1200000000000000000001; };
 		1A1100000000000000000002 /* ManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1200000000000000000002; };
+		1A11000000000000000000F1 /* AppUpdateManifest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A12000000000000000000F1; };
+		1A11000000000000000000F2 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A12000000000000000000F2; };
 		1A11000000000000000000A3 /* SetupWizard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A12000000000000000000A3; };
 		1A1100000000000000000003 /* RuntimeBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 1A1200000000000000000003; };
 		1A1100000000000000000004 /* FileTransfer.c in Sources */ = {isa = PBXBuildFile; fileRef = 1A1200000000000000000004; };
@@ -898,6 +900,8 @@
 		BBFB557F21587B6800DFE6DE /* ArrowBarButton.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ArrowBarButton.m; sourceTree = "<group>"; };
 		1A1200000000000000000001 /* Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app/LinuxRunner/Environment.swift; sourceTree = SOURCE_ROOT; };
 		1A1200000000000000000002 /* ManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app/LinuxRunner/ManagerView.swift; sourceTree = SOURCE_ROOT; };
+		1A12000000000000000000F1 /* AppUpdateManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app/LinuxRunner/AppUpdateManifest.swift; sourceTree = SOURCE_ROOT; };
+		1A12000000000000000000F2 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app/LinuxRunner/AppUpdater.swift; sourceTree = SOURCE_ROOT; };
 		1A12000000000000000000A3 /* SetupWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app/LinuxRunner/SetupWizard.swift; sourceTree = SOURCE_ROOT; };
 		1A1200000000000000000003 /* RuntimeBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = app/LinuxRunner/RuntimeBridge.m; sourceTree = SOURCE_ROOT; };
 		1A1200000000000000000004 /* FileTransfer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = app/LinuxRunner/FileTransfer.c; sourceTree = SOURCE_ROOT; };
@@ -1208,6 +1212,8 @@
 				1A1200000000000000000003 /* RuntimeBridge.m */,
 				1D1200000000000000000854 /* shader_compiler.cpp */,
 				1A1200000000000000000002 /* ManagerView.swift */,
+				1A12000000000000000000F1 /* AppUpdateManifest.swift */,
+				1A12000000000000000000F2 /* AppUpdater.swift */,
 				1A12000000000000000000A3 /* SetupWizard.swift */,
 				1A1200000000000000000001 /* Environment.swift */,
                 1C1200000000000000000001 /* Diagnostics.swift */,
@@ -2591,6 +2597,8 @@
 				1A1100000000000000000004 /* FileTransfer.c in Sources */,
 				1A1100000000000000000003 /* RuntimeBridge.m in Sources */,
 				1A1100000000000000000002 /* ManagerView.swift in Sources */,
+				1A11000000000000000000F1 /* AppUpdateManifest.swift in Sources */,
+				1A11000000000000000000F2 /* AppUpdater.swift in Sources */,
 				1A11000000000000000000A3 /* SetupWizard.swift in Sources */,
 				1A1100000000000000000001 /* Environment.swift in Sources */,
                 1C1100000000000000000001 /* Diagnostics.swift in Sources */,

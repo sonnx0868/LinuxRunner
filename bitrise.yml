@@ -65,8 +65,12 @@ workflows:
             export ARTIFACT_NAME="LinuxRunner-M2-${LINUXRUNNER_JIT}"
             scripts/build-ipa.sh --unsigned
             python3 scripts/verify-ipa.py build/releases
+            for ipa in build/releases/*.ipa; do
+                python3 scripts/make-update-manifest.py "$ipa" --tag "m2-build-$((1000 + BITRISE_BUILD_NUMBER))"
+            done
             mkdir -p "$BITRISE_DEPLOY_DIR"
             cp build/releases/*.ipa build/releases/*.sha256 docs/IPAD-M2-VI.md "$BITRISE_DEPLOY_DIR/"
+            cp build/releases/update-*.json "$BITRISE_DEPLOY_DIR/"
     - script@1:
         title: Collect build diagnostics
         is_always_run: true
@@ -82,4 +86,11 @@ workflows:
                 log="build/gpu/iphoneos/work/$dependency-build/meson-logs/meson-log.txt"
                 if [[ -f "$log" ]]; then cp "$log" "$BITRISE_DEPLOY_DIR/$dependency-meson-log.txt"; fi
             done
-    - deploy-to-bitrise-io@2: {}
+    - deploy-to-bitrise-io@2:
+        inputs:
+        # Unsigned IPAs have no Apple provisioning profile. Upload as a ZIP
+        # artifact so Bitrise does not try to generate an OTA install page.
+        - is_compress: 'true'
+        - zip_name: LinuxRunner-M2-build-$BITRISE_BUILD_NUMBER
+        - is_enable_public_page: 'false'
+        - notify_user_groups: none

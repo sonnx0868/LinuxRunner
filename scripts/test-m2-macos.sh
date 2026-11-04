@@ -3,6 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ $(uname -s) == Darwin && $(uname -m) == arm64 ]] || { echo 'Use an ARM64 macOS Bitrise machine.' >&2; exit 1; }
 mkdir -p build/m2-tests
+swiftc app/LinuxRunner/AppUpdateManifest.swift tests/linuxrunner/update-manifest-probe.swift -o build/m2-tests/update-manifest
+build/m2-tests/update-manifest
+swiftc -typecheck -swift-version 5 -target arm64-apple-ios15.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" app/LinuxRunner/AppUpdateManifest.swift app/LinuxRunner/AppUpdater.swift
 for probe in rfb_decode_probe rfb_guest_probe; do
     clang -fobjc-arc -fblocks -I. -framework Foundation \
         "tests/linuxrunner/gui/$probe.m" app/LinuxRunner/RFBClient.m app/LinuxRunner/RFBProtocol.c \

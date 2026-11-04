@@ -325,6 +325,7 @@ private struct TerminalPresentation: Identifiable {
 
 struct ManagerView: View {
     @StateObject private var manager = EnvironmentManager()
+    @ObservedObject private var updater = AppUpdater.shared
     let terminal: TerminalViewController
     @State private var selectedTab = 0
     @State private var desktopSummary: [String: Any] = [:]
@@ -371,6 +372,7 @@ struct ManagerView: View {
         .accentColor(Color(red: 0.36, green: 0.68, blue: 0.98))
         .preferredColorScheme(appearance == "system" ? nil : appearance == "light" ? .light : .dark)
         .onAppear {
+            updater.check(automatic: true)
             desktopSummary = LRRuntimeBridge.desktopSessionSummary()
             // First launch without Linux, or setup waiting for its relaunch/account step.
             // Once per launch, so "Later" is respected.
@@ -405,6 +407,14 @@ struct ManagerView: View {
             TerminalScreen(controller: item.controller)
         }
         .sheet(item: $share) { item in ShareView(item: item) }
+        .sheet(isPresented: $updater.presentHandoff) {
+            if let url = updater.readyURL {
+                NavigationView {
+                    AppUpdateHandoff(url: url).navigationTitle("Send to LCSign")
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { updater.presentHandoff = false } } }
+                }.navigationViewStyle(.stack)
+            }
+        }
         .fileImporter(isPresented: $importer, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
             guard let root = importRoot else { return }
             transfer(result: result, root: root)
@@ -412,7 +422,10 @@ struct ManagerView: View {
         .alert("LinuxRunner", isPresented: Binding(get: { manager.error != nil }, set: { if !$0 { DispatchQueue.main.async { manager.error = nil } } })) {
             Button("OK") { manager.error = nil }
         } message: { Text(manager.error ?? "") }
-        .onChange(of: phase) { _ in manager.refresh() }
+        .onChange(of: phase) { _ in
+            manager.refresh()
+            if phase == .active { updater.check(automatic: true) }
+        }
     }
     private var activeEnvironment: LinuxEnvironment? { manager.environments.first(where: manager.active) }
     @AppStorage("LinuxRunnerGraphics.mode") private var graphicsMode = "mesa"
@@ -597,7 +610,12 @@ struct ManagerView: View {
                     Text("On by default from build 884. Applies after fully closing and reopening LinuxRunner. Uses the same Asbestos engine with fewer dispatch steps per memory access (Mac: Python and Node startup 4-5% faster, ABI suites and browser tests pass). Turn off to restore the previous memory dispatch path if an app misbehaves.").font(.caption)
                 }
             }
-            Section("About") { NavigationLink(destination: LinuxRunnerAboutView()) { Label("About LinuxRunner", systemImage: "info.circle") } }
+            Section("About") {
+                NavigationLink(destination: AppUpdateSettingsView(updater: updater)) {
+                    Label(updater.readyURL == nil ? "App Updates" : "Update Ready · LCSign", systemImage: "arrow.down.circle")
+                }
+                NavigationLink(destination: LinuxRunnerAboutView()) { Label("About LinuxRunner", systemImage: "info.circle") }
+            }
         }.listStyle(.insetGrouped).navigationTitle("Settings")
     }
     private func openTerminal(_ environment: LinuxEnvironment) {

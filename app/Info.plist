@@ -36,6 +36,10 @@
 	<string>$(ROOTFS_SHA256)</string>
 	<key>LinuxRunnerSourceCommit</key>
 	<string>$(LINUXRUNNER_SOURCE_COMMIT)</string>
+	<key>LinuxRunnerUpdateChannel</key>
+	<string>$(LINUXRUNNER_UPDATE_CHANNEL)</string>
+	<key>LinuxRunnerUpdateBundleID</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Allow Linux applications to connect to computers and services on your local network.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
